@@ -1,0 +1,17 @@
+services:
+  aetheris:
+    build: .
+    tty: true
+    stdin_open: true
+    working_dir: /app
+    entrypoint: bash
+    volumes:
+      - ./:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev/dri:/dev/dri
+    environment:
+      - DISPLAY=${DISPLAY}
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
