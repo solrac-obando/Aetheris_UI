@@ -1,3 +1,9 @@
+"""
+Numba-optimized solver for Aetheris UI.
+Uses @njit for maximum desktop performance.
+
+Aether-Guard: Includes L2 Norm clamping and NaN protection.
+"""
 import numpy as np
 from numba import njit
 
@@ -74,3 +80,49 @@ def calculate_boundary_forces(state: np.ndarray, container_w: float, container_h
 
     # Aether-Guard: Clamp boundary force magnitude
     return clamp_vector_magnitude(force, 5000.0)
+
+
+@njit(cache=True)
+def lerp_arrays(state_a: np.ndarray, state_b: np.ndarray, t: float) -> np.ndarray:
+    """
+    Vectorized Linear Interpolation for high-dimensional arrays.
+    Numba-optimized version.
+    
+    Formula: result = (1-t) * a + t * b
+    """
+    result = np.empty(4, dtype=np.float32)
+    for i in range(4):
+        result[i] = np.float32((1.0 - t) * state_a[i] + t * state_b[i])
+    return result
+
+
+@njit(cache=True)
+def speed_to_stiffness(transition_time_ms: float) -> float:
+    """
+    Derive Spring Constant (k) from transition duration (T).
+    Numba-optimized version.
+    
+    Formula: k = 16 / T^2 (T in seconds)
+    """
+    if transition_time_ms <= 0.0:
+        return 0.1
+    
+    T_sec = transition_time_ms / 1000.0
+    if T_sec < 0.001:
+        T_sec = 0.001
+    
+    k = 16.0 / (T_sec * T_sec)
+    return np.float32(min(k, 10000.0))
+
+
+@njit(cache=True)
+def speed_to_viscosity(transition_time_ms: float) -> float:
+    """
+    Derive optimal viscosity from transition speed.
+    Numba-optimized version.
+    """
+    if transition_time_ms <= 0.0:
+        return 0.1
+    
+    viscosity = 1.0 - (transition_time_ms / 1000.0)
+    return np.float32(max(0.05, min(viscosity, 0.95)))

@@ -181,6 +181,9 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
      * 
      * HYBRID COMPOSITING: We read both the NumPy physics array AND the JSON
      * metadata bridge to render text elements alongside physics-driven rectangles.
+     * 
+     * MEMORY MANAGEMENT: All PyProxy objects are destroyed in a finally block
+     * to prevent leaks even when exceptions occur.
      */
     function renderLoop() {
         if (!engine) {
@@ -191,28 +194,43 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
         const width = window.innerWidth;
         const height = window.innerHeight;
 
+        // Proxy references for cleanup in finally block
+        let dataProxy = null;
+        let rectProxy = null;
+        let colorProxy = null;
+        let zProxy = null;
+        let rectBuffer = null;
+        let colorBuffer = null;
+        let zBuffer = null;
+        let metadataProxy = null;
+
         try {
             // Call Python engine tick - returns a structured NumPy array as PyProxy
-            const dataProxy = engine.tick(width, height);
+            dataProxy = engine.tick(width, height);
 
             // Extract field proxies from the structured array
-            const rectProxy = dataProxy.get('rect');
-            const colorProxy = dataProxy.get('color');
-            const zProxy = dataProxy.get('z');
+            rectProxy = dataProxy.get('rect');
+            colorProxy = dataProxy.get('color');
+            zProxy = dataProxy.get('z');
 
             // Get number of elements
             const numElements = dataProxy.length;
 
             // Extract raw data from NumPy arrays via buffer protocol
-            const rects = rectProxy.getBuffer().data;    // Float32Array [x0,y0,w0,h0, ...]
-            const colors = colorProxy.getBuffer().data;  // Float32Array [r0,g0,b0,a0, ...]
-            const zIndices = zProxy.getBuffer().data;    // Int32Array [z0, z1, z2, ...]
+            // Store buffer references so we can release them in finally
+            rectBuffer = rectProxy.getBuffer();
+            colorBuffer = colorProxy.getBuffer();
+            zBuffer = zProxy.getBuffer();
+            const rects = rectBuffer.data;    // Float32Array [x0,y0,w0,h0, ...]
+            const colors = colorBuffer.data;  // Float32Array [r0,g0,b0,a0, ...]
+            const zIndices = zBuffer.data;    // Int32Array [z0, z1, z2, ...]
 
             // HYBRID COMPOSITING: Get text metadata from engine via JSON bridge
             // This contains CanvasTextNode and DOMTextNode data keyed by z-index
-            const metadataProxy = engine.get_ui_metadata();
+            metadataProxy = engine.get_ui_metadata();
             const uiMetadata = JSON.parse(metadataProxy);
             metadataProxy.destroy();
+            metadataProxy = null;
 
             // Track which DOM nodes are active this frame (for cleanup)
             const activeThisFrame = new Set();
@@ -339,14 +357,19 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
                 }
             }
 
-            // CRITICAL: Destroy ALL PyProxy objects to prevent memory leaks
-            rectProxy.destroy();
-            colorProxy.destroy();
-            zProxy.destroy();
-            dataProxy.destroy();
-
         } catch (e) {
             console.error('Error in render loop:', e);
+        } finally {
+            // CRITICAL: Destroy ALL PyProxy and PyBuffer objects to prevent memory leaks
+            // This runs whether the frame succeeded or threw an exception
+            if (rectBuffer) { rectBuffer.release(); rectBuffer = null; }
+            if (colorBuffer) { colorBuffer.release(); colorBuffer = null; }
+            if (zBuffer) { zBuffer.release(); zBuffer = null; }
+            if (rectProxy) { rectProxy.destroy(); rectProxy = null; }
+            if (colorProxy) { colorProxy.destroy(); colorProxy = null; }
+            if (zProxy) { zProxy.destroy(); zProxy = null; }
+            if (dataProxy) { dataProxy.destroy(); dataProxy = null; }
+            if (metadataProxy) { metadataProxy.destroy(); metadataProxy = null; }
         }
 
         // FPS counter
