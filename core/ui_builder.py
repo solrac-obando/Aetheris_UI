@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from core.elements import DifferentialElement, StaticBox, SmartPanel, SmartButton, FlexibleTextNode, CanvasTextNode, DOMTextNode
 from core.engine import AetherEngine
 from core.tensor_compiler import TensorCompiler
+from core.data_bridge import BaseAetherProvider, min_max_scale
 
 
 class UIBuilder:
@@ -68,6 +69,116 @@ class UIBuilder:
             compiler = TensorCompiler()
             coefficients = compiler.compile_intent(intent)
             compiler.apply_coefficients(engine, coefficients)
+    
+    def build_from_datasource(self, engine: AetherEngine, provider: BaseAetherProvider,
+                               query: str, template_json: dict) -> int:
+        """
+        Build UI elements from a database query result.
+        
+        Executes the query via the provider, iterates through rows, and
+        instantiates DifferentialElement objects where DB columns map to
+        physics properties (x, y, w, h, color).
+        
+        Supports algebraic data normalization via min_max_scale for
+        columns with large value ranges.
+        
+        Args:
+            engine: Target AetherEngine instance
+            provider: Data provider (SQLiteProvider or RemoteAetherProvider)
+            query: SQL query or API query string
+            template_json: Template defining how DB columns map to element properties.
+                          Example:
+                          {
+                              "type": "static_box",
+                              "columns": {
+                                  "x": {"source": "pos_x", "scale": [0, 1000, 10, 790]},
+                                  "y": {"source": "pos_y", "scale": [0, 1000, 10, 590]},
+                                  "w": {"source": "width", "scale": [0, 10000, 50, 500]},
+                                  "h": {"source": "height", "scale": [0, 10000, 50, 500]},
+                                  "color": {"source": ["r", "g", "b", "a"]},
+                                  "z": {"source": "layer"},
+                              },
+                              "metadata_fields": ["title", "rating", "year"]
+                          }
+                          
+        Returns:
+            Number of elements created.
+        """
+        if not getattr(provider, '_connected', True):
+            provider.connect()
+        
+        rows = provider.execute_query(query)
+        if not rows:
+            return 0
+        
+        elem_type = template_json.get('type', 'static_box')
+        columns_map = template_json.get('columns', {})
+        metadata_fields = template_json.get('metadata_fields', [])
+        defaults = self.DEFAULTS.get(elem_type, self.DEFAULTS['static_box']).copy()
+        
+        # Pre-compute column ranges for normalization
+        col_ranges = {}
+        for prop, mapping in columns_map.items():
+            if 'scale' in mapping:
+                src = mapping['source']
+                if isinstance(src, str):
+                    values = [float(row.get(src, 0)) for row in rows if row.get(src) is not None]
+                    if values:
+                        col_ranges[src] = (min(values), max(values))
+        
+        created = 0
+        for row in rows:
+            elem_id = str(row.get('id', f'db_element_{created}'))
+            props = defaults.copy()
+            metadata = {}
+            
+            # Map columns to element properties
+            for prop, mapping in columns_map.items():
+                src = mapping.get('source', prop)
+                
+                if isinstance(src, list):
+                    # Multi-column mapping (e.g., color from [r, g, b, a])
+                    values = []
+                    for col_name in src:
+                        val = row.get(col_name, 1.0)
+                        if col_name in col_ranges and 'scale' in mapping:
+                            s = mapping['scale']
+                            val = min_max_scale(float(val), s[0], s[1], s[2], s[3])
+                        values.append(float(val))
+                    if len(values) == 4:
+                        props[prop] = values
+                elif isinstance(src, str):
+                    val = row.get(src, props.get(prop, 0))
+                    if src in col_ranges and 'scale' in mapping:
+                        s = mapping['scale']
+                        val = min_max_scale(float(val), s[0], s[1], s[2], s[3])
+                    props[prop] = float(val) if prop in ('x', 'y', 'w', 'h', 'z') else val
+            
+            # Extract metadata fields
+            for field in metadata_fields:
+                if field in row:
+                    metadata[field] = row[field]
+            
+            # Build element definition
+            elem_def = {**props, 'type': elem_type, 'id': elem_id}
+            if metadata:
+                elem_def['metadata'] = metadata
+                if 'title' in metadata:
+                    elem_def['text_content'] = str(metadata['title'])
+            
+            # Create and register element
+            element = self._create_element(elem_def)
+            if element is not None:
+                engine.register_element(element)
+                created += 1
+        
+        # Apply physics coefficients
+        if 'animation' in template_json or 'transition_speed_ms' in template_json:
+            compiler = TensorCompiler()
+            coefficients = compiler.compile_intent(template_json)
+            compiler.apply_coefficients(engine, coefficients)
+        
+        return created
     
     def _create_element(self, elem_def: dict) -> Optional[DifferentialElement]:
         """

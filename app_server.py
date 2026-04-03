@@ -6,7 +6,7 @@ SharedArrayBuffer, and injects dynamic UI Intent JSON into the page.
 """
 import json
 import os
-from flask import Flask, render_template, send_from_directory, jsonify
+from flask import Flask, render_template, send_from_directory, jsonify, request
 
 app = Flask(__name__, 
             template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
@@ -175,7 +175,6 @@ def serve_core(filename):
 @app.route('/api/intent', methods=['GET'])
 def get_intent():
     """API endpoint to get the current UI Intent (for debugging)."""
-    # Same intent as index page - in production this would be dynamic
     ui_intent = {
         "layout": "column",
         "spacing": 20,
@@ -194,6 +193,91 @@ def get_intent():
         ]
     }
     return jsonify(ui_intent)
+
+
+# ============================================================================
+# Aether-Data Bridge: Server-Side PostgreSQL Simulation
+# ============================================================================
+
+# Simulated movie database (in production, this would be a real PostgreSQL connection)
+SIMULATED_MOVIES = [
+    {"id": 1, "title": "The Matrix", "rating": 8.7, "year": 1999, "rating_count": 1800000, "genre": "Sci-Fi"},
+    {"id": 2, "title": "Inception", "rating": 8.8, "year": 2010, "rating_count": 2300000, "genre": "Sci-Fi"},
+    {"id": 3, "title": "Interstellar", "rating": 8.6, "year": 2014, "rating_count": 1700000, "genre": "Sci-Fi"},
+    {"id": 4, "title": "The Dark Knight", "rating": 9.0, "year": 2008, "rating_count": 2600000, "genre": "Action"},
+    {"id": 5, "title": "Pulp Fiction", "rating": 8.9, "year": 1994, "rating_count": 2000000, "genre": "Crime"},
+    {"id": 6, "title": "Fight Club", "rating": 8.8, "year": 1999, "rating_count": 2100000, "genre": "Drama"},
+    {"id": 7, "title": "Forrest Gump", "rating": 8.8, "year": 1994, "rating_count": 2000000, "genre": "Drama"},
+    {"id": 8, "title": "The Shawshank Redemption", "rating": 9.3, "year": 1994, "rating_count": 2700000, "genre": "Drama"},
+]
+
+
+@app.route('/api/v1/db-bridge', methods=['GET', 'POST'])
+def db_bridge():
+    """
+    Aether-Data Bridge endpoint.
+    
+    This endpoint simulates a PostgreSQL database response for the
+    RemoteAetherProvider. In production, this would connect to a real
+    PostgreSQL database and execute queries server-side.
+    
+    Security: DB credentials are NEVER exposed to the client.
+    All query validation and sanitization happens server-side.
+    
+    GET: Returns bridge status.
+    POST: Executes a simulated database operation.
+          Payload: {"action": "query|insert|get|delete", ...}
+    """
+    if request.method == 'GET':
+        return jsonify({
+            "status": "connected",
+            "provider": "simulated_postgres",
+            "tables": ["movies", "element_states"],
+        })
+    
+    data = request.get_json(silent=True) or {}
+    action = data.get('action', 'query')
+    
+    if action == 'query':
+        query = data.get('query', 'SELECT * FROM movies')
+        
+        # Simulate SQL parsing for basic movie queries
+        if 'movies' in query.lower():
+            # Simulate WHERE clause
+            genre_filter = None
+            if 'genre' in query.lower():
+                for movie in SIMULATED_MOVIES:
+                    if movie['genre'].lower() in query.lower():
+                        genre_filter = movie['genre']
+                        break
+            
+            if genre_filter:
+                results = [m for m in SIMULATED_MOVIES if m['genre'] == genre_filter]
+            else:
+                results = SIMULATED_MOVIES
+            
+            return jsonify({"success": True, "data": results, "count": len(results)})
+        
+        return jsonify({"success": True, "data": [], "count": 0})
+    
+    elif action == 'insert':
+        element_id = data.get('element_id', '')
+        state = data.get('state', {})
+        return jsonify({"success": True, "element_id": element_id, "message": "State saved"})
+    
+    elif action == 'get':
+        element_id = data.get('element_id', '')
+        # Return a simulated element state
+        return jsonify({
+            "success": True,
+            "data": [{"element_id": element_id, "x": 100.0, "y": 100.0, "w": 200.0, "h": 150.0, "z": 0}],
+        })
+    
+    elif action == 'delete':
+        element_id = data.get('element_id', '')
+        return jsonify({"success": True, "element_id": element_id, "message": "State deleted"})
+    
+    return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
 
 
 if __name__ == '__main__':
