@@ -14,6 +14,8 @@
     const loadingEl = document.getElementById('loading');
     const fpsEl = document.getElementById('fps');
     const overlayEl = document.getElementById('aether-overlay');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
 
     // Pyodide and engine references
     let pyodide = null;
@@ -25,6 +27,63 @@
 
     // DOM node tracking for hybrid compositing (DOMTextNode)
     const activeDOMNodes = {};
+    
+    // Progress bar state for Lerp smoothing
+    let currentProgress = 0;
+    let targetProgress = 0;
+    let progressAnimFrame = null;
+
+    /**
+     * Algebraic Progress Bar Update using Linear Interpolation (Lerp).
+     * 
+     * Mathematical Foundation (Álgebra de Baldor - Proporciones):
+     * v = a + t(b - a)
+     * Where: a = current value, b = target value, t = smoothing factor
+     * 
+     * This creates a smooth, eased transition that feels natural rather than
+     * the jarring jumps of direct assignment.
+     * 
+     * @param {number} target - Target progress (0-100)
+     * @param {string} label - Status text to display
+     */
+    function updateProgress(target, label) {
+        targetProgress = Math.max(0, Math.min(100, target));
+        if (progressText) {
+            progressText.textContent = label || `${Math.round(targetProgress)}%`;
+        }
+        
+        // Start animation loop if not running
+        if (!progressAnimFrame) {
+            animateProgress();
+        }
+    }
+    
+    /**
+     * Animate the progress bar using Lerp for smooth transitions.
+     * Runs at ~60fps via requestAnimationFrame.
+     */
+    function animateProgress() {
+        const smoothing = 0.15; // Lerp factor (higher = faster catch-up)
+        
+        // Lerp: current = current + (target - current) * smoothing
+        currentProgress += (targetProgress - currentProgress) * smoothing;
+        
+        // Snap when very close (prevents infinite micro-adjustments)
+        if (Math.abs(targetProgress - currentProgress) < 0.1) {
+            currentProgress = targetProgress;
+        }
+        
+        if (progressBar) {
+            progressBar.style.width = `${currentProgress}%`;
+        }
+        
+        // Continue animation if not yet at target
+        if (Math.abs(targetProgress - currentProgress) > 0.01) {
+            progressAnimFrame = requestAnimationFrame(animateProgress);
+        } else {
+            progressAnimFrame = null;
+        }
+    }
 
     /**
      * Resize canvas to fill viewport and sync with engine.
@@ -304,36 +363,61 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
     }
 
     /**
-     * Main initialization sequence.
+     * Main initialization sequence with algebraic progress tracking.
      */
     async function main() {
         try {
-            // Resize canvas
+            // Phase 1: Resize canvas (5%)
+            updateProgress(5, 'Initializing viewport...');
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
 
-            // Initialize Pyodide
+            // Phase 2: Load Pyodide runtime (10-40%)
+            updateProgress(10, 'Loading Pyodide runtime...');
             pyodide = await loadPyodide({
-                indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/'
+                indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/',
             });
+            updateProgress(40, 'Pyodide loaded');
 
-            // Load numpy
+            // Phase 3: Load numpy package (40-55%)
+            updateProgress(45, 'Loading NumPy package...');
             await pyodide.loadPackage('numpy');
+            updateProgress(55, 'NumPy ready');
 
-            // Mount core Python files
+            // Phase 4: Mount core Python files (55-80%)
+            updateProgress(60, 'Loading core modules...');
             await mountCoreFiles();
+            updateProgress(80, 'Core modules loaded');
 
-            // Initialize AetherEngine
+            // Phase 5: Initialize AetherEngine (80-95%)
+            updateProgress(85, 'Initializing physics engine...');
             await initEngine();
+            updateProgress(95, 'Engine ready');
 
-            // Hide loading screen
-            loadingEl.style.display = 'none';
+            // Phase 6: Complete (100%)
+            updateProgress(100, 'Launching...');
+            
+            // Small delay to show 100% before hiding
+            await new Promise(r => setTimeout(r, 300));
+
+            // Hide loading screen with fade
+            if (loadingEl) {
+                loadingEl.classList.add('hidden');
+                setTimeout(() => {
+                    loadingEl.style.display = 'none';
+                }, 500);
+            }
 
             // Start render loop
             requestAnimationFrame(renderLoop);
 
         } catch (e) {
-            loadingEl.innerHTML = `<div style="color: #f66;">Error: ${e.message}</div>`;
+            if (loadingEl) {
+                loadingEl.innerHTML = `<div style="color: #f66; font-family: monospace; text-align: center;">
+                    <div style="font-size: 18px; margin-bottom: 8px;">Error</div>
+                    <div style="font-size: 12px; color: #888;">${e.message}</div>
+                </div>`;
+            }
             console.error('Aetheris initialization failed:', e);
         }
     }

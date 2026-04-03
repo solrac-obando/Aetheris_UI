@@ -25,6 +25,34 @@ def add_cors_headers(response):
     return response
 
 
+@app.route('/static/manifest.json')
+def serve_manifest():
+    """Serve the PWA manifest with correct MIME type."""
+    static_dir = os.path.join(PROJECT_ROOT, 'static')
+    response = send_from_directory(static_dir, 'manifest.json', mimetype='application/manifest+json')
+    return response
+
+
+@app.route('/static/sw.js')
+def serve_service_worker():
+    """Serve the Service Worker with correct MIME type and scope header.
+    
+    The Service-Worker-Allowed header tells the browser this SW can control
+    the entire origin (/), not just its own directory (/static/).
+    """
+    static_dir = os.path.join(PROJECT_ROOT, 'static')
+    response = send_from_directory(static_dir, 'sw.js', mimetype='application/javascript')
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
+
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static assets (icons, etc.)."""
+    static_dir = os.path.join(PROJECT_ROOT, 'static')
+    return send_from_directory(static_dir, filename)
+
+
 @app.route('/')
 def index():
     """Serve the main page with injected UI Intent JSON."""
