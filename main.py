@@ -1,7 +1,7 @@
 """
 Main entry point for Aetheris UI demonstration.
 Shows the decoupling between the mathematical engine and the renderer.
-Can switch between MockRenderer (headless) and TkinterRenderer (visual).
+Can switch between MockRenderer (headless), TkinterRenderer (visual), and GLRenderer (GPU).
 """
 import time
 import sys
@@ -9,15 +9,23 @@ from core.engine import AetherEngine
 from core.elements import StaticBox, SmartPanel, SmartButton, FlexibleTextNode
 from core.renderer_base import MockRenderer
 from core.tkinter_renderer import TkinterRenderer
+from core.gl_renderer import GLRenderer
 
 
-def main(use_tkinter=False):
+def main(use_tkinter=False, use_gl=False):
     """Demonstrate the Aetheris UI architecture with a simple loop.
     
     Args:
         use_tkinter: If True, use TkinterRenderer; otherwise use MockRenderer
+        use_gl: If True, use GLRenderer (overrides use_tkinter if both are True)
     """
     print("=== Aetheris UI Demo ===")
+    if use_gl:
+        print("Using GLRenderer for GPU-accelerated rendering")
+    elif use_tkinter:
+        print("Using TkinterRenderer for visual prototyping")
+    else:
+        print("Using MockRenderer for headless validation")
     print("Decoupled Mathematical Engine + Renderer")
     print()
     
@@ -65,7 +73,72 @@ def main(use_tkinter=False):
     engine.register_element(button)
     
     # Initialize the renderer based on choice
-    if use_tkinter:
+    if use_gl:
+        print("Using GLRenderer for GPU acceleration")
+        renderer = GLRenderer()
+        renderer.init_window(800, 600, "Aetheris UI - GPU Rendering")
+        
+        # Run for specified number of frames or until interrupted
+        frames_to_run = 10
+        if len(sys.argv) > 2:
+            try:
+                frames_to_run = int(sys.argv[2])
+            except ValueError:
+                pass
+                
+        print(f"Starting render loop ({frames_to_run} frames for GPU validation)...")
+        print()
+        
+        for frame in range(frames_to_run):
+            if frame % 5 == 0:  # Print every 5 frames to reduce output
+                print(f"--- Frame {frame + 1} ---")
+            
+            # Window size could change each frame (responsive design)
+            # Gradually increase size to test responsiveness
+            win_w = 800 + (frame * 2)  # Slow width increase
+            win_h = 600 + (frame * 1)  # Slow height increase
+            
+            # Update the mathematical engine (physics + asymptote calculation)
+            data_buffer = engine.tick(win_w, win_h)
+            
+            # Render using the decoupled renderer
+            renderer.clear_screen((0.1, 0.1, 0.1, 1.0))  # Dark gray background
+            renderer.render_frame(data_buffer)
+            renderer.swap_buffers()
+            
+            # Print element positions every 5 frames for validation
+            if frame % 5 == 0 and len(data_buffer) >= 4:
+                static_rect = data_buffer[0]['rect']
+                panel_rect = data_buffer[1]['rect'] 
+                text_rect = data_buffer[2]['rect']
+                button_rect = data_buffer[3]['rect']
+                
+                print(f"  StaticBox:    [{static_rect[0]:.1f}, {static_rect[1]:.1f}, {static_rect[2]:.1f}, {static_rect[3]:.1f}]")
+                print(f"  SmartPanel:   [{panel_rect[0]:.1f}, {panel_rect[1]:.1f}, {panel_rect[2]:.1f}, {panel_rect[3]:.1f}]")
+                print(f"  FlexibleText: [{text_rect[0]:.1f}, {text_rect[1]:.1f}, {text_rect[2]:.1f}, {text_rect[3]:.1f}]")
+                print(f"  SmartButton:  [{button_rect[0]:.1f}, {button_rect[1]:.1f}, {button_rect[2]:.1f}, {button_rect[3]:.1f}]")
+                
+                # Calculate expected asymptotes for validation
+                expected_panel_x = win_w * 0.05  # 5% padding
+                expected_panel_y = win_h * 0.05
+                expected_panel_w = win_w * 0.9   # 90% width (100% - 2*5%)
+                expected_panel_h = win_h * 0.9
+                print(f"  Expected Panel: [{expected_panel_x:.1f}, {expected_panel_y:.1f}, {expected_panel_w:.1f}, {expected_panel_h:.1f}]")
+                print()
+            
+            # Small delay to see the output (only for mock renderer)
+            time.sleep(0.01)
+        
+        print()
+        print("GPU validation complete! Notice how:")
+        print("1. The renderer never touches DifferentialElement objects")
+        print("2. Only the structured NumPy array flows from engine to renderer")
+        print("3. Mathematical engine handles physics, AI asymptotes, and temporal variation")
+        print("4. Renderer handles only visual presentation via GPU shaders")
+        print("5. Elements converge toward their asymptotes over time")
+        print("6. Rendering is hardware-accelerated using ModernGL and SDF shaders")
+        
+    elif use_tkinter:
         print("Using TkinterRenderer for visual prototyping")
         renderer = TkinterRenderer()
         renderer.init_window(800, 600, "Aetheris UI - Tkinter Prototyping")
@@ -136,11 +209,15 @@ def main(use_tkinter=False):
 
 
 if __name__ == "__main__":
-    # Check command line argument for renderer selection
-    use_tkinter = len(sys.argv) > 1 and sys.argv[1] == "--tkinter"
-    if use_tkinter:
+    # Check command line arguments for renderer selection
+    use_tkinter = "--tkinter" in sys.argv
+    use_gl = "--gl" in sys.argv
+    
+    if use_gl:
+        print("Starting with GL renderer (GPU-accelerated mode)")
+    elif use_tkinter:
         print("Starting with Tkinter renderer (visual mode)")
     else:
         print("Starting with Mock renderer (headless validation mode)")
-        print("Tip: Use '--tkinter' flag for visual prototyping")
-    main(use_tkinter=use_tkinter)
+        print("Tip: Use '--tkinter' flag for visual prototyping or '--gl' for GPU acceleration")
+    main(use_tkinter=use_tkinter, use_gl=use_gl)
