@@ -13,6 +13,7 @@
     const ctx = canvas.getContext('2d');
     const loadingEl = document.getElementById('loading');
     const fpsEl = document.getElementById('fps');
+    const overlayEl = document.getElementById('aether-overlay');
 
     // Pyodide and engine references
     let pyodide = null;
@@ -21,6 +22,9 @@
     // FPS tracking
     let frameCount = 0;
     let lastFpsTime = performance.now();
+
+    // DOM node tracking for hybrid compositing (DOMTextNode)
+    const activeDOMNodes = {};
 
     /**
      * Resize canvas to fill viewport and sync with engine.
@@ -115,6 +119,9 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
      * MEMORY MANAGEMENT: PyProxy objects from Pyodide must be explicitly
      * destroyed after use, otherwise they leak memory in the browser.
      * Every .get() call on a PyProxy creates a new proxy that must be .destroy()ed.
+     * 
+     * HYBRID COMPOSITING: We read both the NumPy physics array AND the JSON
+     * metadata bridge to render text elements alongside physics-driven rectangles.
      */
     function renderLoop() {
         if (!engine) {
@@ -138,10 +145,18 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
             const numElements = dataProxy.length;
 
             // Extract raw data from NumPy arrays via buffer protocol
-            // This creates TypedArrays that share memory with the NumPy arrays
-            const rects = rectProxy.getBuffer().data;    // Float32Array [x0,y0,w0,h0, x1,y1,w1,h1, ...]
-            const colors = colorProxy.getBuffer().data;  // Float32Array [r0,g0,b0,a0, r1,g1,b1,a1, ...]
+            const rects = rectProxy.getBuffer().data;    // Float32Array [x0,y0,w0,h0, ...]
+            const colors = colorProxy.getBuffer().data;  // Float32Array [r0,g0,b0,a0, ...]
             const zIndices = zProxy.getBuffer().data;    // Int32Array [z0, z1, z2, ...]
+
+            // HYBRID COMPOSITING: Get text metadata from engine via JSON bridge
+            // This contains CanvasTextNode and DOMTextNode data keyed by z-index
+            const metadataProxy = engine.get_ui_metadata();
+            const uiMetadata = JSON.parse(metadataProxy);
+            metadataProxy.destroy();
+
+            // Track which DOM nodes are active this frame (for cleanup)
+            const activeThisFrame = new Set();
 
             // Clear canvas
             ctx.fillStyle = 'rgba(10, 10, 10, 1.0)';
@@ -163,22 +178,109 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
                 const b = Math.round(colors[idx + 2] * 255);
                 const a = colors[idx + 3];
 
-                // Set fill color
-                ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                // Get z-index for metadata lookup
+                const z = zIndices[i];
 
-                // Draw rounded rectangle if available, fallback to regular rect
-                if (ctx.roundRect && w > 20 && h > 20) {
-                    ctx.beginPath();
-                    ctx.roundRect(x, y, w, h, 8);
-                    ctx.fill();
+                // Check if this element has text metadata
+                const textData = uiMetadata[String(z)];
+                if (textData && textData.type === 'dom_text') {
+                    // DOMTextNode: Create/update HTML overlay element
+                    const zKey = String(z);
+                    activeThisFrame.add(zKey);
+
+                    let node = activeDOMNodes[zKey];
+                    if (!node) {
+                        // Create new DOM element
+                        node = document.createElement('div');
+                        node.style.position = 'absolute';
+                        node.style.pointerEvents = 'auto';
+                        node.style.overflow = 'hidden';
+                        node.style.display = 'flex';
+                        node.style.alignItems = 'center';
+                        node.style.justifyContent = 'center';
+                        node.style.willChange = 'transform';
+                        node.style.userSelect = 'text';
+                        node.style.webkitUserSelect = 'text';
+                        overlayEl.appendChild(node);
+                        activeDOMNodes[zKey] = node;
+                    }
+
+                    // Update content and styling
+                    const text = textData.text || '';
+                    const fontSize = textData.size || 16;
+                    const fontFamily = textData.family || 'Arial';
+                    const tc = textData.color || [1, 1, 1, 1];
+                    const tr = Math.round(tc[0] * 255);
+                    const tg = Math.round(tc[1] * 255);
+                    const tb = Math.round(tc[2] * 255);
+                    const ta = tc[3];
+
+                    node.textContent = text;
+                    node.style.font = `${fontSize}px ${fontFamily}`;
+                    node.style.color = `rgba(${tr}, ${tg}, ${tb}, ${ta})`;
+
+                    // Hardware-accelerated CSS transforms for physics sync
+                    node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+                    node.style.width = `${w}px`;
+                    node.style.height = `${h}px`;
+
+                    // Don't draw anything on canvas for DOM text nodes
+                } else if (textData && textData.type === 'canvas_text') {
+                    // CanvasTextNode: Draw text directly on canvas
+                    const text = textData.text || '';
+                    const fontSize = textData.size || 24;
+                    const fontFamily = textData.family || 'Arial';
+                    const tc = textData.color || [1, 1, 1, 1];
+                    const tr = Math.round(tc[0] * 255);
+                    const tg = Math.round(tc[1] * 255);
+                    const tb = Math.round(tc[2] * 255);
+                    const ta = tc[3];
+
+                    // Only draw rect background if alpha > 0
+                    if (a > 0.01) {
+                        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                        if (ctx.roundRect && w > 20 && h > 20) {
+                            ctx.beginPath();
+                            ctx.roundRect(x, y, w, h, 8);
+                            ctx.fill();
+                        } else {
+                            ctx.fillRect(x, y, w, h);
+                        }
+                    }
+
+                    // Draw text centered in the rect
+                    ctx.font = `${fontSize}px ${fontFamily}`;
+                    ctx.fillStyle = `rgba(${tr}, ${tg}, ${tb}, ${ta})`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    const centerX = x + w / 2;
+                    const centerY = y + h / 2;
+                    ctx.fillText(text, centerX, centerY);
                 } else {
-                    ctx.fillRect(x, y, w, h);
+                    // Regular physics element (no text metadata)
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+                    if (ctx.roundRect && w > 20 && h > 20) {
+                        ctx.beginPath();
+                        ctx.roundRect(x, y, w, h, 8);
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(x, y, w, h);
+                    }
+                }
+            }
+
+            // Remove DOM nodes that are no longer needed
+            for (const zKey of Object.keys(activeDOMNodes)) {
+                if (!activeThisFrame.has(zKey)) {
+                    const node = activeDOMNodes[zKey];
+                    if (node && node.parentNode) {
+                        node.parentNode.removeChild(node);
+                    }
+                    delete activeDOMNodes[zKey];
                 }
             }
 
             // CRITICAL: Destroy ALL PyProxy objects to prevent memory leaks
-            // Each .get() call creates a new proxy that holds a reference to Python memory
-            // If not destroyed, these accumulate and crash the browser
             rectProxy.destroy();
             colorProxy.destroy();
             zProxy.destroy();

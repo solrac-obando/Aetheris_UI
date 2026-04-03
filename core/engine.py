@@ -1,8 +1,9 @@
 import time
+import json
 import numpy as np
 from typing import List, Optional
 from core.aether_math import StateTensor
-from core.elements import DifferentialElement
+from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver
 from core.state_manager import StateManager
 from core.tensor_compiler import TensorCompiler
@@ -92,3 +93,20 @@ class AetherEngine:
     @property
     def element_count(self) -> int:
         return len(self._elements)
+    
+    def get_ui_metadata(self) -> str:
+        """Return JSON string containing text metadata for CanvasTextNode and DOMTextNode elements.
+        
+        The Structured NumPy Array only holds floats, so text data (strings, font sizes)
+        must be exposed through a separate JSON bridge. This method collects all
+        text-based elements and returns their metadata keyed by z-index.
+        
+        Returns:
+            JSON string: {"z_index": {"type": "canvas_text|dom_text", "text": "...", ...}}
+        """
+        metadata = {}
+        for element in self._elements:
+            if isinstance(element, (CanvasTextNode, DOMTextNode)):
+                z_key = str(element._z_index)
+                metadata[z_key] = element.text_metadata
+        return json.dumps(metadata)

@@ -221,3 +221,176 @@ class SmartButton(DifferentialElement):
         target_h = self._offset_h
         
         return np.array([target_x, target_y, target_w, target_h], dtype=np.float32)
+
+
+class CanvasTextNode(DifferentialElement):
+    """A text element rendered directly on the Canvas via ctx.fillText.
+    
+    This element participates fully in the physics simulation (Hooke's Law,
+    boundary forces, Epsilon Snapping) but its text metadata is exposed
+    separately via the engine's get_ui_metadata() JSON bridge since the
+    Structured NumPy Array cannot hold strings.
+    
+    Ideal for high-performance, non-selectable text like game scores,
+    trivia cards, or animated labels.
+    """
+    
+    # Element type marker for the metadata bridge
+    _element_type = "canvas_text"
+    
+    def __init__(self, x=0, y=0, w=200, h=50, color=(1, 1, 1, 1), z=0,
+                 text="Text", font_size=24, font_family="Arial"):
+        """Initialize a canvas text node.
+        
+        Args:
+            x, y: Position coordinates (physics-driven)
+            w, h: Width and height dimensions (physics-driven)
+            color: RGBA tuple (float32, values 0-1) for the text color
+            z: Z-index for rendering depth
+            text: The text content to display
+            font_size: Font size in pixels
+            font_family: Font family name
+        """
+        super().__init__(x, y, w, h, color, z)
+        self._text = text
+        self._font_size = font_size
+        self._font_family = font_family
+
+    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+        """Return fixed target rectangle (static text positioning).
+        
+        The text node maintains its initial position as its asymptote.
+        Future phases may implement responsive text sizing and wrapping.
+        """
+        return self.tensor.state.copy()
+    
+    @property
+    def text(self):
+        """Get the text content."""
+        return self._text
+    
+    @text.setter
+    def text(self, value):
+        """Set the text content."""
+        self._text = value
+    
+    @property
+    def font_size(self):
+        """Get the font size in pixels."""
+        return self._font_size
+    
+    @font_size.setter
+    def font_size(self, value):
+        """Set the font size in pixels."""
+        self._font_size = value
+    
+    @property
+    def font_family(self):
+        """Get the font family name."""
+        return self._font_family
+    
+    @font_family.setter
+    def font_family(self, value):
+        """Set the font family name."""
+        self._font_family = value
+    
+    @property
+    def text_metadata(self):
+        """Get text metadata for the JSON metadata bridge.
+        
+        Returns:
+            dict: Text rendering metadata for the JS renderer
+        """
+        return {
+            "type": "canvas_text",
+            "text": self._text,
+            "size": self._font_size,
+            "family": self._font_family,
+            "color": self._color.tolist(),
+        }
+
+
+class DOMTextNode(DifferentialElement):
+    """A text element rendered as an HTML <div> overlaid on the Canvas.
+    
+    This element participates fully in the physics simulation (Hooke's Law,
+    boundary forces, Epsilon Snapping) but its text metadata is exposed
+    separately via the engine's get_ui_metadata() JSON bridge.
+    
+    The JS renderer creates/updates actual DOM elements positioned via
+    hardware-accelerated CSS transforms (translate3d), enabling:
+    - Text selection
+    - Accessibility (screen readers)
+    - SEO (searchable content)
+    - Rich HTML (links, formatting)
+    """
+    
+    _element_type = "dom_text"
+    
+    def __init__(self, x=0, y=0, w=200, h=50, color=(0, 0, 0, 0), z=0,
+                 text="Text", font_size=16, font_family="Arial", text_color=(1, 1, 1, 1)):
+        """Initialize a DOM text node.
+        
+        Args:
+            x, y: Position coordinates (physics-driven)
+            w, h: Width and height dimensions (physics-driven)
+            color: RGBA tuple for the rect background (typically transparent)
+            z: Z-index for rendering depth
+            text: The text content to display
+            font_size: Font size in pixels
+            font_family: Font family name
+            text_color: RGBA tuple (float32, values 0-1) for the text color
+        """
+        super().__init__(x, y, w, h, color, z)
+        self._text = text
+        self._font_size = font_size
+        self._font_family = font_family
+        self._text_color = np.array(text_color, dtype=np.float32)
+
+    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+        """Return fixed target rectangle (static text positioning)."""
+        return self.tensor.state.copy()
+    
+    @property
+    def text(self):
+        return self._text
+    
+    @text.setter
+    def text(self, value):
+        self._text = value
+    
+    @property
+    def font_size(self):
+        return self._font_size
+    
+    @font_size.setter
+    def font_size(self, value):
+        self._font_size = value
+    
+    @property
+    def font_family(self):
+        return self._font_family
+    
+    @font_family.setter
+    def font_family(self, value):
+        self._font_family = value
+    
+    @property
+    def text_color(self):
+        return self._text_color
+    
+    @text_color.setter
+    def text_color(self, value):
+        self._text_color = np.array(value, dtype=np.float32)
+    
+    @property
+    def text_metadata(self):
+        """Get text metadata for the JSON metadata bridge."""
+        return {
+            "type": "dom_text",
+            "text": self._text,
+            "size": self._font_size,
+            "family": self._font_family,
+            "color": self._text_color.tolist(),
+            "bg_color": self._color.tolist(),
+        }

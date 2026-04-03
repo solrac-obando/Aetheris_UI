@@ -47,14 +47,17 @@ def index():
             },
             {
                 "id": "title_text",
-                "type": "flexible_text",
+                "type": "canvas_text",
                 "x": 40,
                 "y": 15,
                 "w": 400,
                 "h": 40,
-                "color": [1.0, 1.0, 1.0, 1.0],
+                "color": [0, 0, 0, 0],
+                "text_color": [1.0, 1.0, 1.0, 1.0],
+                "font_size": 24,
+                "font_family": "Arial",
+                "text_content": "Aetheris Hybrid Canvas Text",
                 "z": 5,
-                "text": "Aetheris UI - Server-Driven",
             },
             {
                 "id": "content_panel",
@@ -104,6 +107,20 @@ def index():
                 "color": [0.3, 0.8, 0.3, 1.0],
                 "z": 3,
             },
+            {
+                "id": "description",
+                "type": "dom_text",
+                "x": 50,
+                "y": 300,
+                "w": 500,
+                "h": 100,
+                "color": [0, 0, 0, 0],
+                "text_color": [0.8, 0.8, 0.8, 1.0],
+                "font_size": 16,
+                "font_family": "Arial",
+                "text_content": "This is selectable HTML text driven by a physics engine.",
+                "z": 10,
+            },
         ]
     }
     
@@ -139,12 +156,13 @@ def get_intent():
         "transition_speed_ms": 300,
         "elements": [
             {"id": "header_panel", "type": "smart_panel", "padding": 0.03, "color": [0.15, 0.15, 0.25, 1.0], "z": 0},
-            {"id": "title_text", "type": "flexible_text", "x": 40, "y": 15, "w": 400, "h": 40, "color": [1.0, 1.0, 1.0, 1.0], "z": 5, "text": "Aetheris UI"},
+            {"id": "title_text", "type": "canvas_text", "x": 40, "y": 15, "w": 400, "h": 40, "color": [0, 0, 0, 0], "text_color": [1.0, 1.0, 1.0, 1.0], "font_size": 24, "text_content": "Aetheris Hybrid Canvas Text", "z": 5},
             {"id": "content_panel", "type": "smart_panel", "padding": 0.05, "color": [0.2, 0.2, 0.3, 0.9], "z": 1},
             {"id": "card_1", "type": "static_box", "x": 30, "y": 30, "w": 150, "h": 200, "color": [0.8, 0.2, 0.3, 0.9], "z": 2},
             {"id": "card_2", "type": "static_box", "x": 200, "y": 30, "w": 150, "h": 200, "color": [0.2, 0.6, 0.9, 0.9], "z": 2},
             {"id": "card_3", "type": "static_box", "x": 370, "y": 30, "w": 150, "h": 200, "color": [0.9, 0.7, 0.2, 0.9], "z": 2},
             {"id": "action_button", "type": "smart_button", "parent": "content_panel", "offset_x": 20, "offset_y": 250, "offset_w": 120, "offset_h": 40, "color": [0.3, 0.8, 0.3, 1.0], "z": 3},
+            {"id": "description", "type": "dom_text", "x": 50, "y": 300, "w": 500, "h": 100, "color": [0, 0, 0, 0], "text_color": [0.8, 0.8, 0.8, 1.0], "font_size": 16, "text_content": "This is selectable HTML text driven by a physics engine.", "z": 10},
         ]
     }
     return jsonify(ui_intent)

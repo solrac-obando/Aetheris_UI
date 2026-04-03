@@ -7,7 +7,7 @@ and instantiates the appropriate DifferentialElement subclasses.
 """
 import numpy as np
 from typing import Dict, List, Optional
-from core.elements import DifferentialElement, StaticBox, SmartPanel, SmartButton, FlexibleTextNode
+from core.elements import DifferentialElement, StaticBox, SmartPanel, SmartButton, FlexibleTextNode, CanvasTextNode, DOMTextNode
 from core.engine import AetherEngine
 from core.tensor_compiler import TensorCompiler
 
@@ -21,6 +21,7 @@ class UIBuilder:
         'smart_panel': SmartPanel,
         'smart_button': SmartButton,
         'flexible_text': FlexibleTextNode,
+        'canvas_text': CanvasTextNode,
     }
     
     # Default properties for each element type
@@ -29,6 +30,8 @@ class UIBuilder:
         'smart_panel': {'x': 0, 'y': 0, 'w': 100, 'h': 100, 'color': [0.9, 0.2, 0.6, 0.8], 'z': 1, 'padding': 0.05},
         'smart_button': {'offset_x': 0, 'offset_y': 0, 'offset_w': 100, 'offset_h': 50, 'color': [0.8, 0.8, 0.2, 1.0], 'z': 2},
         'flexible_text': {'x': 0, 'y': 10, 'w': 200, 'h': 40, 'color': [0.2, 0.6, 0.9, 1.0], 'z': 2, 'text': 'Text'},
+        'canvas_text': {'x': 0, 'y': 10, 'w': 200, 'h': 40, 'color': [1.0, 1.0, 1.0, 1.0], 'z': 5, 'text': 'Text', 'font_size': 24, 'font_family': 'Arial'},
+        'dom_text': {'x': 0, 'y': 10, 'w': 200, 'h': 50, 'color': [0, 0, 0, 0], 'z': 10, 'text': 'Text', 'font_size': 16, 'font_family': 'Arial', 'text_color': [1.0, 1.0, 1.0, 1.0]},
     }
     
     def __init__(self):
@@ -140,6 +143,39 @@ class UIBuilder:
                 color=tuple(color),
                 z=int(props.get('z', 2)),
                 text=str(props.get('text', 'Text')),
+            )
+        
+        elif elem_type == 'canvas_text':
+            text_color = props.get('text_color', props.get('color', [1, 1, 1, 1]))
+            if isinstance(text_color, str):
+                text_color = self._hex_to_rgba(text_color)
+            element = CanvasTextNode(
+                x=float(props['x']),
+                y=float(props['y']),
+                w=float(props['w']),
+                h=float(props['h']),
+                color=tuple(color),
+                z=int(props.get('z', 5)),
+                text=str(props.get('text_content', props.get('text', 'Text'))),
+                font_size=int(props.get('font_size', 24)),
+                font_family=str(props.get('font_family', 'Arial')),
+            )
+        
+        elif elem_type == 'dom_text':
+            text_color = props.get('text_color', [1, 1, 1, 1])
+            if isinstance(text_color, str):
+                text_color = self._hex_to_rgba(text_color)
+            element = DOMTextNode(
+                x=float(props['x']),
+                y=float(props['y']),
+                w=float(props['w']),
+                h=float(props['h']),
+                color=tuple(color),
+                z=int(props.get('z', 10)),
+                text=str(props.get('text_content', props.get('text', 'Text'))),
+                font_size=int(props.get('font_size', 16)),
+                font_family=str(props.get('font_family', 'Arial')),
+                text_color=tuple(text_color),
             )
         
         if element is not None:
