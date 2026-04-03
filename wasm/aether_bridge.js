@@ -452,4 +452,101 @@ print(f"Aetheris Engine initialized with {engine.element_count} elements from se
         main();
     }
 
+    // ========================================================================
+    // Phase 19: Haptic Input Bridge (Drag, Drop, Throw)
+    // ========================================================================
+    
+    let isPointerDown = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+    let pointerMoveThrottle = false;
+
+    /**
+     * Hit test: find element under pointer using AABB check.
+     * Returns element index or -1.
+     */
+    function hitTest(x, y, dataBuffer) {
+        const rectProxy = dataBuffer.get('rect');
+        const rectBuffer = rectProxy.getBuffer();
+        const rects = rectBuffer.data;
+        const n = dataBuffer.length;
+        
+        // Reverse order for z-index priority (top elements first)
+        for (let i = n - 1; i >= 0; i--) {
+            const idx = i * 4;
+            const ex = rects[idx];
+            const ey = rects[idx + 1];
+            const ew = rects[idx + 2];
+            const eh = rects[idx + 3];
+            
+            if (x >= ex && x <= ex + ew && y >= ey && y <= ey + eh) {
+                rectBuffer.release();
+                rectProxy.destroy();
+                return i;
+            }
+        }
+        
+        rectBuffer.release();
+        rectProxy.destroy();
+        return -1;
+    }
+
+    function setupInputBridge() {
+        const targets = [canvas, overlayEl];
+        
+        targets.forEach(target => {
+            if (!target) return;
+            
+            target.addEventListener('pointerdown', (e) => {
+                if (!engine) return;
+                isPointerDown = true;
+                lastPointerX = e.clientX;
+                lastPointerY = e.clientY;
+                
+                // Get current frame data for hit testing
+                const dataProxy = engine.tick(window.innerWidth, window.innerHeight);
+                const hitIdx = hitTest(e.clientX, e.clientY, dataProxy);
+                dataProxy.destroy();
+                
+                if (hitIdx >= 0) {
+                    engine.handle_pointer_down(hitIdx, e.clientX, e.clientY);
+                    target.setPointerCapture(e.pointerId);
+                }
+            });
+            
+            target.addEventListener('pointermove', (e) => {
+                if (!engine || !isPointerDown) return;
+                
+                // Throttle to avoid overwhelming Pyodide
+                if (pointerMoveThrottle) return;
+                pointerMoveThrottle = true;
+                setTimeout(() => { pointerMoveThrottle = false; }, 16);
+                
+                lastPointerX = e.clientX;
+                lastPointerY = e.clientY;
+                engine.handle_pointer_move(e.clientX, e.clientY);
+            });
+            
+            target.addEventListener('pointerup', (e) => {
+                if (!engine || !isPointerDown) return;
+                isPointerDown = false;
+                engine.handle_pointer_up();
+                target.releasePointerCapture(e.pointerId);
+            });
+            
+            target.addEventListener('pointercancel', (e) => {
+                if (!engine || !isPointerDown) return;
+                isPointerDown = false;
+                engine.handle_pointer_up();
+            });
+        });
+    }
+    
+    // Setup input bridge after engine initialization
+    const _origMain = main;
+    main = async function() {
+        await _origMain();
+        setupInputBridge();
+    };
+
 })();

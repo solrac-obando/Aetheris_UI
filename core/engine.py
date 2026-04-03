@@ -7,6 +7,7 @@ from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver
 from core.state_manager import StateManager
 from core.tensor_compiler import TensorCompiler
+from core.input_manager import InputManager
 
 
 class AetherEngine:
@@ -16,6 +17,7 @@ class AetherEngine:
         self._dt = 0.0
         self.state_manager = StateManager()
         self.tensor_compiler = TensorCompiler()
+        self.input_manager = InputManager()
         self._physics_coefficients: Optional[np.ndarray] = None
         self._default_stiffness = 0.1
         self._default_viscosity = 0.1
@@ -30,6 +32,54 @@ class AetherEngine:
         
     def transition_to(self, state_name: str) -> None:
         pass
+    
+    def handle_pointer_down(self, x: float, y: float) -> int:
+        """
+        Handle pointer/touch down event. Finds element under cursor and starts drag.
+        
+        Args:
+            x: Pointer X position in screen coordinates
+            y: Pointer Y position in screen coordinates
+            
+        Returns:
+            Index of grabbed element, or -1 if none found.
+        """
+        # Hit test: find element under pointer (reverse order for z-index priority)
+        for idx in range(len(self._elements) - 1, -1, -1):
+            elem = self._elements[idx]
+            rect = elem.tensor.state
+            ex, ey, ew, eh = float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])
+            
+            if ex <= x <= ex + ew and ey <= y <= ey + eh:
+                import time
+                self.input_manager.pointer_down(idx, x, y, time.perf_counter())
+                return idx
+        
+        return -1
+    
+    def handle_pointer_move(self, x: float, y: float) -> None:
+        """
+        Handle pointer/touch move event during drag.
+        
+        Args:
+            x: Pointer X position in screen coordinates
+            y: Pointer Y position in screen coordinates
+        """
+        if self.input_manager.is_dragging:
+            import time
+            self.input_manager.pointer_move(x, y, time.perf_counter())
+    
+    def handle_pointer_up(self) -> None:
+        """Handle pointer/touch up event. Ends drag and applies throw velocity."""
+        if self.input_manager.is_dragging and self.input_manager.dragged_element_index is not None:
+            idx = self.input_manager.dragged_element_index
+            if 0 <= idx < len(self._elements):
+                # Apply throw velocity to the element
+                vx, vy = self.input_manager.get_throw_velocity()
+                self._elements[idx].tensor.velocity[0] = np.float32(vx)
+                self._elements[idx].tensor.velocity[1] = np.float32(vy)
+        
+        self.input_manager.pointer_up()
         
     def tick(self, win_w: float, win_h: float) -> np.ndarray:
         current_time = time.perf_counter()
@@ -63,8 +113,20 @@ class AetherEngine:
             if hasattr(element, '_viscosity'):
                 element_viscosity = min(element._viscosity * viscosity_multiplier, 1.0)
             
-            # Solver with dynamic stiffness (dual-path: Numba or Pure NumPy)
-            force = solver.calculate_restoring_force(element.tensor.state, target, spring_constant=stiffness)
+            # Phase 19: Input handling - drag force overrides restoring force
+            if self.input_manager.is_dragging and self.input_manager.dragged_element_index == idx:
+                # Apply drag force instead of restoring force
+                rect = element.tensor.state
+                drag_force = self.input_manager.calculate_drag_force(
+                    float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])
+                )
+                force = drag_force
+                # Use extra damping during drag for stability
+                element_viscosity = min(element_viscosity + InputManager.DRAG_DAMPING, 1.0)
+            else:
+                # Normal physics: restoring force + boundary forces
+                force = solver.calculate_restoring_force(element.tensor.state, target, spring_constant=stiffness)
+            
             force += solver.calculate_boundary_forces(element.tensor.state, win_w, win_h, boundary_stiffness=0.5)
             
             element.tensor.apply_force(force)
