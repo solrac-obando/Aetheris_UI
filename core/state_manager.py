@@ -15,8 +15,11 @@ class StateManager:
         self.hyper_damping_frames = 0
         
     def check_teleportation_shock(self, current_w: int, current_h: int) -> float:
-        """Calculates if a drastic resolution change occurred (Delta > 200px)."""
-        if self.last_width == 0:
+        """
+        Calculates if a drastic resolution change occurred.
+        Returns a viscosity multiplier (e.g., 1.0 for normal, 5.0 for shock absorption).
+        """
+        if self.last_width == 0: # First frame
             self.last_width, self.last_height = current_w, current_h
             return 1.0
             
@@ -24,13 +27,10 @@ class StateManager:
         self.last_width, self.last_height = current_w, current_h
         
         if delta_w > 200:
-            self.hyper_damping_frames = 15 # Absorb shock for 15 frames
+            self.hyper_damping_frames = 15 # Apply heavy damping for 15 frames
             
         if self.hyper_damping_frames > 0:
             self.hyper_damping_frames -= 1
-            return 5.0 # 5x viscosity
+            return 5.0 # 5x viscosity to absorb the shock
             
         return 1.0
-    
-    def lerp_arrays(self, state_a, state_b, t):
-        return lerp_arrays(state_a, state_b, t)
