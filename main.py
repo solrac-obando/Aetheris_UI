@@ -5,6 +5,7 @@ Can switch between MockRenderer (headless), TkinterRenderer (visual), and GLRend
 """
 import time
 import sys
+import numpy as np
 from core.engine import AetherEngine
 from core.elements import StaticBox, SmartPanel, SmartButton, FlexibleTextNode
 from core.renderer_base import MockRenderer
@@ -72,6 +73,23 @@ def main(use_tkinter=False, use_gl=False):
     engine.register_element(flexible_text)
     engine.register_element(button)
     
+    # Register UI states for demonstration (Phase 10 feature)
+    # Desktop state: normal layout
+    desktop_state = {
+        smart_panel: np.array([40.0, 30.0, 720.0, 540.0], dtype=np.float32),  # 5% padding in 800x600
+        flexible_text: np.array([200.0, 10.0, 400.0, 40.0], dtype=np.float32),  # Centered
+        button: np.array([150.0, 140.0, 80.0, 30.0], dtype=np.float32)  # Example position
+    }
+    engine.register_state('desktop', desktop_state)
+    
+    # Mobile state: different layout (simulating rotation or mobile view)
+    mobile_state = {
+        smart_panel: np.array([20.0, 20.0, 760.0, 360.0], dtype=np.float32),  # Different padding
+        flexible_text: np.array([100.0, 10.0, 600.0, 40.0], dtype=np.float32),  # Full width
+        button: np.array([50.0, 50.0, 100.0, 30.0], dtype=np.float32)  # Different position
+    }
+    engine.register_state('mobile', mobile_state)
+    
     # Initialize the renderer based on choice
     if use_gl:
         print("Using GLRenderer for GPU acceleration")
@@ -79,7 +97,7 @@ def main(use_tkinter=False, use_gl=False):
         renderer.init_window(800, 600, "Aetheris UI - GPU Rendering")
         
         # Run for specified number of frames or until interrupted
-        frames_to_run = 10
+        frames_to_run = 100  # Increased to show state transition
         if len(sys.argv) > 2:
             try:
                 frames_to_run = int(sys.argv[2])
@@ -87,16 +105,22 @@ def main(use_tkinter=False, use_gl=False):
                 pass
                 
         print(f"Starting render loop ({frames_to_run} frames for GPU validation)...")
+        print("State transition from 'desktop' to 'mobile' will occur at frame 50")
         print()
         
         for frame in range(frames_to_run):
-            if frame % 5 == 0:  # Print every 5 frames to reduce output
+            if frame % 10 == 0:  # Print every 10 frames to reduce output
                 print(f"--- Frame {frame + 1} ---")
             
             # Window size could change each frame (responsive design)
             # Gradually increase size to test responsiveness
             win_w = 800 + (frame * 2)  # Slow width increase
             win_h = 600 + (frame * 1)  # Slow height increase
+            
+            # State transition demonstration: switch to mobile state at frame 50
+            if frame == 50:
+                print(">> TRANSITIONING TO MOBILE STATE <<")
+                engine.transition_to('mobile')
             
             # Update the mathematical engine (physics + asymptote calculation)
             data_buffer = engine.tick(win_w, win_h)
@@ -106,8 +130,8 @@ def main(use_tkinter=False, use_gl=False):
             renderer.render_frame(data_buffer)
             renderer.swap_buffers()
             
-            # Print element positions every 5 frames for validation
-            if frame % 5 == 0 and len(data_buffer) >= 4:
+            # Print element positions every 10 frames for validation
+            if frame % 10 == 0 and len(data_buffer) >= 4:
                 static_rect = data_buffer[0]['rect']
                 panel_rect = data_buffer[1]['rect'] 
                 text_rect = data_buffer[2]['rect']
@@ -128,7 +152,7 @@ def main(use_tkinter=False, use_gl=False):
             
             # Small delay to see the output (only for mock renderer)
             time.sleep(0.01)
-        
+         
         print()
         print("GPU validation complete! Notice how:")
         print("1. The renderer never touches DifferentialElement objects")
@@ -137,6 +161,8 @@ def main(use_tkinter=False, use_gl=False):
         print("4. Renderer handles only visual presentation via GPU shaders")
         print("5. Elements converge toward their asymptotes over time")
         print("6. Rendering is hardware-accelerated using ModernGL and SDF shaders")
+        print("7. State management enables efficient UI transitions (desktop <-> mobile)")
+        print("8. UI Snap Threshold (99% Rule) prevents unnecessary computation at rest")
         
     elif use_tkinter:
         print("Using TkinterRenderer for visual prototyping")
@@ -157,6 +183,7 @@ def main(use_tkinter=False, use_gl=False):
         
         # Main loop - run for 100 frames for validation
         print("Starting render loop (100 frames for headless validation)...")
+        print("State transition from 'desktop' to 'mobile' will occur at frame 50")
         print()
         
         for frame in range(100):
@@ -167,6 +194,11 @@ def main(use_tkinter=False, use_gl=False):
             # Gradually increase size to test responsiveness
             win_w = 800 + (frame * 2)  # Slow width increase
             win_h = 600 + (frame * 1)  # Slow height increase
+            
+            # State transition demonstration: switch to mobile state at frame 50
+            if frame == 50:
+                print(">> TRANSITIONING TO MOBILE STATE <<")
+                engine.transition_to('mobile')
             
             # Update the mathematical engine (physics + asymptote calculation)
             data_buffer = engine.tick(win_w, win_h)
@@ -198,7 +230,7 @@ def main(use_tkinter=False, use_gl=False):
             
             # Small delay to see the output (only for mock renderer)
             time.sleep(0.01)
-        
+         
         print()
         print("Headless validation complete! Notice how:")
         print("1. The renderer never touches DifferentialElement objects")
@@ -206,6 +238,8 @@ def main(use_tkinter=False, use_gl=False):
         print("3. Mathematical engine handles physics, AI asymptotes, and temporal variation")
         print("4. Renderer handles only visual presentation")
         print("5. Elements converge toward their asymptotes over time")
+        print("6. State management enables efficient UI transitions (desktop <-> mobile)")
+        print("7. UI Snap Threshold (99% Rule) prevents unnecessary computation at rest")
 
 
 if __name__ == "__main__":
