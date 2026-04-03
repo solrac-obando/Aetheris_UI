@@ -553,3 +553,150 @@ Auto-detects Numba availability and imports the appropriate solver implementatio
 ---
 
 *For architectural context, see [ARCHITECTURE.md](ARCHITECTURE.md). For the main README, see [../README.md](../README.md).*
+
+---
+
+## Data Bridge (`data_bridge.py`)
+
+### Module Constants
+
+| Constant | Type | Value | Description |
+|----------|------|-------|-------------|
+| `DATA_NORMALIZE_MIN` | `float` | `10.0` | Default minimum for Min-Max scaling (pixels) |
+| `DATA_NORMALIZE_MAX` | `float` | `500.0` | Default maximum for Min-Max scaling (pixels) |
+| `VECTOR_TENSOR_SCALE` | `float` | `100.0` | Default scale factor for vector-to-tensor conversion |
+| `REMOTE_CONNECT_TIMEOUT` | `int` | `5` | Timeout for remote provider connectivity check (seconds) |
+| `REMOTE_REQUEST_TIMEOUT` | `int` | `10` | Timeout for remote provider requests (seconds) |
+| `NORMALIZATION_EPSILON` | `float` | `1e-9` | Epsilon for safe division in normalization |
+
+### `min_max_scale(value, data_min, data_max, target_min=DATA_NORMALIZE_MIN, target_max=DATA_NORMALIZE_MAX)`
+
+Min-Max Scaling with Aether-Guard protection.
+
+**Parameters:**
+- `value`: The value to scale
+- `data_min`: Minimum value in the source data
+- `data_max`: Maximum value in the source data
+- `target_min`: Minimum of target range (default: 10.0)
+- `target_max`: Maximum of target range (default: 500.0)
+
+**Returns:**
+- Scaled value clamped to `[target_min, target_max]`.
+
+### `normalize_column(values, target_min=DATA_NORMALIZE_MIN, target_max=DATA_NORMALIZE_MAX)`
+
+Normalize an entire column of values using Min-Max scaling.
+
+**Parameters:**
+- `values`: List of source values
+- `target_min`: Minimum of target range
+- `target_max`: Maximum of target range
+
+**Returns:**
+- List of normalized values.
+
+### `vector_to_tensor(vector, scale=VECTOR_TENSOR_SCALE)`
+
+Convert a PostgreSQL vector embedding into a StateTensor force.
+
+**Parameters:**
+- `vector`: List of floats (AI embedding)
+- `scale`: Scaling factor (default: 100.0)
+
+**Returns:**
+- `np.ndarray` of shape `(4,)`, dtype `float32` — force vector `[fx, fy, fw, fh]`.
+
+### `class BaseAetherProvider(ABC)`
+
+Abstract base class for data providers.
+
+**Abstract methods:**
+- `connect()` — Establish connection
+- `disconnect()` — Close connection
+- `execute_query(query, params)` — Execute query, return list of dicts
+- `insert_element_state(element_id, state)` — Save element state
+- `get_element_state(element_id)` — Retrieve element state
+- `delete_element_state(element_id)` — Delete element state
+
+### `class SQLiteProvider(BaseAetherProvider)`
+
+SQLite-based provider for local persistence.
+
+#### `__init__(db_path=None)`
+
+**Parameters:**
+- `db_path`: Path to SQLite database. Auto-detects WASM vs Desktop.
+
+#### `connect()`
+
+Establishes connection and creates `element_states` table if needed.
+
+#### `disconnect()`
+
+Closes connection. Safe to call multiple times.
+
+#### `execute_query(query, params=())`
+
+Executes SQL query and returns list of dictionaries.
+
+#### `insert_element_state(element_id, state)`
+
+Saves element state using INSERT OR REPLACE.
+
+**Parameters:**
+- `element_id`: Unique identifier
+- `state`: Dict with x, y, w, h, r, g, b, a, z, metadata
+
+**Returns:**
+- `True` on success, `False` on failure.
+
+#### `get_element_state(element_id)`
+
+Retrieves element state by ID.
+
+**Returns:**
+- Dict with element state, or `None` if not found.
+
+#### `delete_element_state(element_id)`
+
+Deletes element state by ID.
+
+**Returns:**
+- `True` if row was deleted, `False` otherwise.
+
+#### `get_all_states()`
+
+Retrieves all element states ordered by z-index.
+
+### `class RemoteAetherProvider(BaseAetherProvider)`
+
+REST proxy provider for PostgreSQL via server endpoint.
+
+#### `__init__(base_url="http://localhost:5000")`
+
+**Parameters:**
+- `base_url`: Base URL of the Aetheris server.
+
+#### `connect()`
+
+Verifies connectivity to `/api/v1/db-bridge`.
+
+#### `disconnect()`
+
+Marks connection as closed.
+
+#### `execute_query(query, params=())`
+
+Sends query to server proxy endpoint.
+
+#### `insert_element_state(element_id, state)`
+
+Saves element state via server proxy.
+
+#### `get_element_state(element_id)`
+
+Retrieves element state via server proxy.
+
+#### `delete_element_state(element_id)`
+
+Deletes element state via server proxy.

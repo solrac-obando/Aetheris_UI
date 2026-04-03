@@ -553,3 +553,122 @@ Detecta automáticamente la disponibilidad de Numba e importa la implementación
 ---
 
 *Para contexto arquitectónico, ver [ARCHITECTURE_ES.md](ARCHITECTURE_ES.md). Para el README principal, ver [../README_ES.md](../README_ES.md).*
+
+---
+
+## Puente de Datos (`data_bridge.py`)
+
+### Constantes del Módulo
+
+| Constante | Tipo | Valor | Descripción |
+|-----------|------|-------|-------------|
+| `DATA_NORMALIZE_MIN` | `float` | `10.0` | Mínimo predeterminado para escalado Min-Max (píxeles) |
+| `DATA_NORMALIZE_MAX` | `float` | `500.0` | Máximo predeterminado para escalado Min-Max (píxeles) |
+| `VECTOR_TENSOR_SCALE` | `float` | `100.0` | Factor de escala predeterminado para conversión vector-a-tensor |
+| `REMOTE_CONNECT_TIMEOUT` | `int` | `5` | Timeout para verificación de conectividad remota (segundos) |
+| `REMOTE_REQUEST_TIMEOUT` | `int` | `10` | Timeout para peticiones del proveedor remoto (segundos) |
+| `NORMALIZATION_EPSILON` | `float` | `1e-9` | Épsilon para división segura en normalización |
+
+### `min_max_scale(value, data_min, data_max, target_min=DATA_NORMALIZE_MIN, target_max=DATA_NORMALIZE_MAX)`
+
+Escalado Min-Max con protección Aether-Guard.
+
+**Parámetros:**
+- `value`: El valor a escalar
+- `data_min`: Valor mínimo en los datos fuente
+- `data_max`: Valor máximo en los datos fuente
+- `target_min`: Mínimo del rango objetivo (predeterminado: 10.0)
+- `target_max`: Máximo del rango objetivo (predeterminado: 500.0)
+
+**Retorna:**
+- Valor escalado limitado a `[target_min, target_max]`.
+
+### `normalize_column(values, target_min=DATA_NORMALIZE_MIN, target_max=DATA_NORMALIZE_MAX)`
+
+Normaliza una columna completa de valores usando escalado Min-Max.
+
+**Parámetros:**
+- `values`: Lista de valores fuente
+- `target_min`: Mínimo del rango objetivo
+- `target_max`: Máximo del rango objetivo
+
+**Retorna:**
+- Lista de valores normalizados.
+
+### `vector_to_tensor(vector, scale=VECTOR_TENSOR_SCALE)`
+
+Convierte un vector embedding de PostgreSQL en una fuerza StateTensor.
+
+**Parámetros:**
+- `vector`: Lista de floats (embedding de IA)
+- `scale`: Factor de escala (predeterminado: 100.0)
+
+**Retorna:**
+- `np.ndarray` de forma `(4,)`, tipo `float32` — vector de fuerza `[fx, fy, fw, fh]`.
+
+### `class BaseAetherProvider(ABC)`
+
+Clase base abstracta para proveedores de datos.
+
+**Métodos abstractos:**
+- `connect()` — Establecer conexión
+- `disconnect()` — Cerrar conexión
+- `execute_query(query, params)` — Ejecutar consulta, retornar lista de diccionarios
+- `insert_element_state(element_id, state)` — Guardar estado del elemento
+- `get_element_state(element_id)` — Obtener estado del elemento
+- `delete_element_state(element_id)` — Eliminar estado del elemento
+
+### `class SQLiteProvider(BaseAetherProvider)`
+
+Proveedor basado en SQLite para persistencia local.
+
+#### `__init__(db_path=None)`
+
+**Parámetros:**
+- `db_path`: Ruta a la base de datos SQLite. Auto-detecta WASM vs Escritorio.
+
+#### `connect()`
+
+Establece conexión y crea la tabla `element_states` si es necesario.
+
+#### `disconnect()`
+
+Cierra la conexión. Seguro llamar múltiples veces.
+
+#### `execute_query(query, params=())`
+
+Ejecuta consulta SQL y retorna lista de diccionarios.
+
+#### `insert_element_state(element_id, state)`
+
+Guarda estado del elemento usando INSERT OR REPLACE.
+
+**Parámetros:**
+- `element_id`: Identificador único
+- `state`: Diccionario con x, y, w, h, r, g, b, a, z, metadata
+
+**Retorna:**
+- `True` en éxito, `False` en fallo.
+
+#### `get_element_state(element_id)`
+
+Obtiene estado del elemento por ID.
+
+**Retorna:**
+- Diccionario con estado del elemento, o `None` si no se encuentra.
+
+#### `delete_element_state(element_id)`
+
+Elimina estado del elemento por ID.
+
+**Retorna:**
+- `True` si se eliminó la fila, `False` en caso contrario.
+
+### `class RemoteAetherProvider(BaseAetherProvider)`
+
+Proveedor proxy REST para PostgreSQL vía endpoint del servidor.
+
+#### `__init__(base_url="http://localhost:5000")`
+
+**Parámetros:**
+- `base_url`: URL base del servidor Aetheris.

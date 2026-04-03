@@ -6,6 +6,9 @@ and remote (PostgreSQL via REST proxy) data sources.
 
 WASM Compatible: SQLiteProvider uses Pyodide's virtual filesystem paths.
 Security: RemoteAetherProvider acts as a REST proxy - never exposes DB credentials.
+
+Aether-Guard Compliance: All data normalization uses epsilon-protected division
+and clamped output ranges to prevent physics engine explosions.
 """
 import sqlite3
 import json
@@ -17,40 +20,61 @@ import numpy as np
 
 
 # ============================================================================
+# Aether-Data Configuration Constants
+# ============================================================================
+
+# Normalization defaults (Min-Max Scaling target range in pixels)
+DATA_NORMALIZE_MIN = 10.0
+DATA_NORMALIZE_MAX = 500.0
+
+# Vector-to-tensor scaling factor (embedding units to physics force units)
+VECTOR_TENSOR_SCALE = 100.0
+
+# Network timeouts (seconds)
+REMOTE_CONNECT_TIMEOUT = 5
+REMOTE_REQUEST_TIMEOUT = 10
+
+# Epsilon for safe division in normalization
+NORMALIZATION_EPSILON = 1e-9
+
+
+# ============================================================================
 # Algebraic Data Normalization Utilities
 # ============================================================================
 
 def min_max_scale(value: float, data_min: float, data_max: float,
-                  target_min: float = 10.0, target_max: float = 500.0) -> float:
+                  target_min: float = DATA_NORMALIZE_MIN,
+                  target_max: float = DATA_NORMALIZE_MAX) -> float:
     """
-    Min-Max Scaling (Linear Algebra normalization).
+    Min-Max Scaling (Linear Algebra normalization) with Aether-Guard protection.
     
     Scales a value from [data_min, data_max] to [target_min, target_max].
     Formula: scaled = target_min + (value - data_min) * (target_max - target_min) / (data_max - data_min)
+    
+    Aether-Guard: Uses epsilon-protected division to prevent division-by-zero
+    when data_min equals data_max. Output is clamped to [target_min, target_max].
     
     Args:
         value: The value to scale
         data_min: Minimum value in the source data
         data_max: Maximum value in the source data
-        target_min: Minimum of the target range (default: 10.0 px)
-        target_max: Maximum of the target range (default: 500.0 px)
+        target_min: Minimum of the target range (default: DATA_NORMALIZE_MIN)
+        target_max: Maximum of the target range (default: DATA_NORMALIZE_MAX)
         
     Returns:
-        Scaled value in the target range.
-        
-    Raises:
-        ValueError: If data_min equals data_max (division by zero).
+        Scaled value clamped to [target_min, target_max].
     """
-    if data_max == data_min:
+    denom = data_max - data_min
+    if abs(denom) < NORMALIZATION_EPSILON:
         return (target_min + target_max) / 2.0  # Return midpoint if no range
     
-    ratio = (value - data_min) / (data_max - data_min)
+    ratio = (value - data_min) / denom
     ratio = max(0.0, min(1.0, ratio))  # Clamp to [0, 1]
     return target_min + ratio * (target_max - target_min)
 
 
-def normalize_column(values: List[float], target_min: float = 10.0,
-                     target_max: float = 500.0) -> List[float]:
+def normalize_column(values: List[float], target_min: float = DATA_NORMALIZE_MIN,
+                     target_max: float = DATA_NORMALIZE_MAX) -> List[float]:
     """
     Normalize an entire column of values using Min-Max scaling.
     
@@ -71,7 +95,7 @@ def normalize_column(values: List[float], target_min: float = 10.0,
     return [min_max_scale(v, data_min, data_max, target_min, target_max) for v in values]
 
 
-def vector_to_tensor(vector: List[float], scale: float = 100.0) -> np.ndarray:
+def vector_to_tensor(vector: List[float], scale: float = VECTOR_TENSOR_SCALE) -> np.ndarray:
     """
     Convert a PostgreSQL vector (list of floats) into a StateTensor force.
     
@@ -104,7 +128,8 @@ class BaseAetherProvider(ABC):
     """
     Abstract base class for Aetheris UI data providers.
     
-    Implementations must provide CRUD operations for UI element states.
+    Implementations must provide CRUD operations for UI element states
+    and proper connection lifecycle management.
     """
     
     @abstractmethod
@@ -182,6 +207,9 @@ class SQLiteProvider(BaseAetherProvider):
     
     WASM Compatible: Uses Pyodide's virtual filesystem paths.
     Default path: /home/pyodide/aetheris_data.db (WASM) or ./aetheris_data.db (Desktop).
+    
+    Connection Safety: Implements __del__ and context manager protocol
+    to ensure connections are always closed, even on exceptions.
     """
     
     DEFAULT_PATH_WASM = "/home/pyodide/aetheris_data.db"
@@ -222,26 +250,51 @@ class SQLiteProvider(BaseAetherProvider):
         self.db_path = db_path
         self._conn = None
     
+    def __del__(self):
+        """Ensure connection is closed when provider is garbage collected."""
+        self.disconnect()
+    
+    def __enter__(self):
+        """Context manager entry - establishes connection."""
+        self.connect()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - closes connection regardless of exception."""
+        self.disconnect()
+        return False  # Don't suppress exceptions
+    
     def connect(self) -> None:
         """Establish connection to SQLite database."""
-        # Ensure parent directory exists
-        parent_dir = os.path.dirname(self.db_path)
-        if parent_dir and not os.path.exists(parent_dir):
-            os.makedirs(parent_dir, exist_ok=True)
+        if self._conn is not None:
+            return  # Already connected
         
-        self._conn = sqlite3.connect(self.db_path)
-        self._conn.row_factory = sqlite3.Row
-        
-        # Create table if not exists
-        cursor = self._conn.cursor()
-        cursor.execute(self.CREATE_TABLE_SQL)
-        self._conn.commit()
+        try:
+            # Ensure parent directory exists
+            parent_dir = os.path.dirname(self.db_path)
+            if parent_dir and not os.path.exists(parent_dir):
+                os.makedirs(parent_dir, exist_ok=True)
+            
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.row_factory = sqlite3.Row
+            
+            # Create table if not exists
+            cursor = self._conn.cursor()
+            cursor.execute(self.CREATE_TABLE_SQL)
+            self._conn.commit()
+        except sqlite3.Error as e:
+            warnings.warn(f"SQLite connection failed: {e}")
+            self._conn = None
     
     def disconnect(self) -> None:
-        """Close connection to SQLite database."""
+        """Close connection to SQLite database. Safe to call multiple times."""
         if self._conn:
-            self._conn.close()
-            self._conn = None
+            try:
+                self._conn.close()
+            except sqlite3.Error:
+                pass
+            finally:
+                self._conn = None
     
     def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """
@@ -256,19 +309,27 @@ class SQLiteProvider(BaseAetherProvider):
         """
         if not self._conn:
             self.connect()
+        if not self._conn:
+            return []
         
-        cursor = self._conn.cursor()
-        cursor.execute(query, params)
-        
-        if cursor.description:
-            columns = [desc[0] for desc in cursor.description]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
-        return []
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute(query, params)
+            
+            if cursor.description:
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return []
+        except sqlite3.Error as e:
+            warnings.warn(f"SQLite query failed: {e}")
+            return []
     
     def insert_element_state(self, element_id: str, state: Dict[str, Any]) -> bool:
         """Save an element's state to SQLite."""
         if not self._conn:
             self.connect()
+        if not self._conn:
+            return False
         
         try:
             cursor = self._conn.cursor()
@@ -291,7 +352,7 @@ class SQLiteProvider(BaseAetherProvider):
             ))
             self._conn.commit()
             return True
-        except sqlite3.Error as e:
+        except (sqlite3.Error, ValueError, TypeError) as e:
             warnings.warn(f"SQLite insert failed: {e}")
             return False
     
@@ -299,25 +360,33 @@ class SQLiteProvider(BaseAetherProvider):
         """Retrieve an element's state from SQLite."""
         if not self._conn:
             self.connect()
+        if not self._conn:
+            return None
         
-        cursor = self._conn.cursor()
-        cursor.execute("SELECT * FROM element_states WHERE element_id = ?", (element_id,))
-        row = cursor.fetchone()
-        
-        if row:
-            result = dict(row)
-            if result.get('metadata'):
-                try:
-                    result['metadata'] = json.loads(result['metadata'])
-                except json.JSONDecodeError:
-                    result['metadata'] = {}
-            return result
-        return None
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("SELECT * FROM element_states WHERE element_id = ?", (element_id,))
+            row = cursor.fetchone()
+            
+            if row:
+                result = dict(row)
+                if result.get('metadata'):
+                    try:
+                        result['metadata'] = json.loads(result['metadata'])
+                    except json.JSONDecodeError:
+                        result['metadata'] = {}
+                return result
+            return None
+        except sqlite3.Error as e:
+            warnings.warn(f"SQLite get failed: {e}")
+            return None
     
     def delete_element_state(self, element_id: str) -> bool:
         """Delete an element's state from SQLite."""
         if not self._conn:
             self.connect()
+        if not self._conn:
+            return False
         
         try:
             cursor = self._conn.cursor()
@@ -346,7 +415,7 @@ class RemoteAetherProvider(BaseAetherProvider):
     All database operations go through the server's /api/v1/db-bridge endpoint,
     protecting credentials and enabling server-side validation.
     
-    WASM Compatible: Uses standard fetch/XMLHTTP requests.
+    WASM Compatible: Uses standard urllib requests (no external dependencies).
     """
     
     def __init__(self, base_url: str = "http://localhost:5000"):
@@ -357,13 +426,11 @@ class RemoteAetherProvider(BaseAetherProvider):
             base_url: Base URL of the Aetheris server.
         """
         self.base_url = base_url.rstrip('/')
-        self._session = None
         self._connected = False
     
     def connect(self) -> None:
         """Verify connectivity to the server."""
         try:
-            # Try urllib for WASM compatibility (no requests library in Pyodide)
             import urllib.request
             import urllib.error
             
@@ -371,7 +438,7 @@ class RemoteAetherProvider(BaseAetherProvider):
             req = urllib.request.Request(url, method='GET')
             req.add_header('Content-Type', 'application/json')
             
-            response = urllib.request.urlopen(req, timeout=5)
+            response = urllib.request.urlopen(req, timeout=REMOTE_CONNECT_TIMEOUT)
             if response.status == 200:
                 self._connected = True
                 return
@@ -384,7 +451,6 @@ class RemoteAetherProvider(BaseAetherProvider):
     def disconnect(self) -> None:
         """Mark connection as closed."""
         self._connected = False
-        self._session = None
     
     def _make_request(self, method: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -399,7 +465,6 @@ class RemoteAetherProvider(BaseAetherProvider):
         """
         import urllib.request
         import urllib.error
-        import json
         
         url = f"{self.base_url}/api/v1/db-bridge"
         data = json.dumps(payload or {}).encode('utf-8') if payload else None
@@ -408,7 +473,7 @@ class RemoteAetherProvider(BaseAetherProvider):
         req.add_header('Content-Type', 'application/json')
         
         try:
-            response = urllib.request.urlopen(req, timeout=10)
+            response = urllib.request.urlopen(req, timeout=REMOTE_REQUEST_TIMEOUT)
             return json.loads(response.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
             warnings.warn(f"Remote request failed: {e.code} {e.reason}")

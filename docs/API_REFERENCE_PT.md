@@ -553,3 +553,122 @@ Detecta automaticamente a disponibilidade de Numba e importa a implementação d
 ---
 
 *Para contexto arquitetônico, ver [ARCHITECTURE_PT.md](ARCHITECTURE_PT.md). Para o README principal, ver [../README_PT.md](../README_PT.md).*
+
+---
+
+## Ponte de Dados (`data_bridge.py`)
+
+### Constantes do Módulo
+
+| Constante | Tipo | Valor | Descrição |
+|-----------|------|-------|-----------|
+| `DATA_NORMALIZE_MIN` | `float` | `10.0` | Mínimo padrão para escalonamento Min-Max (pixels) |
+| `DATA_NORMALIZE_MAX` | `float` | `500.0` | Máximo padrão para escalonamento Min-Max (pixels) |
+| `VECTOR_TENSOR_SCALE` | `float` | `100.0` | Fator de escala padrão para conversão vetor-para-tensor |
+| `REMOTE_CONNECT_TIMEOUT` | `int` | `5` | Timeout para verificação de conectividade remota (segundos) |
+| `REMOTE_REQUEST_TIMEOUT` | `int` | `10` | Timeout para requisições do provedor remoto (segundos) |
+| `NORMALIZATION_EPSILON` | `float` | `1e-9` | Épsilon para divisão segura na normalização |
+
+### `min_max_scale(value, data_min, data_max, target_min=DATA_NORMALIZE_MIN, target_max=DATA_NORMALIZE_MAX)`
+
+Escalonamento Min-Max com proteção Aether-Guard.
+
+**Parâmetros:**
+- `value`: O valor a escalonar
+- `data_min`: Valor mínimo nos dados fonte
+- `data_max`: Valor máximo nos dados fonte
+- `target_min`: Mínimo do intervalo alvo (padrão: 10.0)
+- `target_max`: Máximo do intervalo alvo (padrão: 500.0)
+
+**Retorna:**
+- Valor escalonado limitado a `[target_min, target_max]`.
+
+### `normalize_column(values, target_min=DATA_NORMALIZE_MIN, target_max=DATA_NORMALIZE_MAX)`
+
+Normaliza uma coluna inteira de valores usando escalonamento Min-Max.
+
+**Parâmetros:**
+- `values`: Lista de valores fonte
+- `target_min`: Mínimo do intervalo alvo
+- `target_max`: Máximo do intervalo alvo
+
+**Retorna:**
+- Lista de valores normalizados.
+
+### `vector_to_tensor(vector, scale=VECTOR_TENSOR_SCALE)`
+
+Converte um vetor embedding do PostgreSQL em uma força StateTensor.
+
+**Parâmetros:**
+- `vector`: Lista de floats (embedding de IA)
+- `scale`: Fator de escala (padrão: 100.0)
+
+**Retorna:**
+- `np.ndarray` de forma `(4,)`, tipo `float32` — vetor de força `[fx, fy, fw, fh]`.
+
+### `class BaseAetherProvider(ABC)`
+
+Classe base abstrata para provedores de dados.
+
+**Métodos abstratos:**
+- `connect()` — Estabelecer conexão
+- `disconnect()` — Fechar conexão
+- `execute_query(query, params)` — Executar consulta, retornar lista de dicionários
+- `insert_element_state(element_id, state)` — Salvar estado do elemento
+- `get_element_state(element_id)` — Obter estado do elemento
+- `delete_element_state(element_id)` — Excluir estado do elemento
+
+### `class SQLiteProvider(BaseAetherProvider)`
+
+Provedor baseado em SQLite para persistência local.
+
+#### `__init__(db_path=None)`
+
+**Parâmetros:**
+- `db_path`: Caminho para o banco de dados SQLite. Auto-detecta WASM vs Desktop.
+
+#### `connect()`
+
+Estabelece conexão e cria a tabela `element_states` se necessário.
+
+#### `disconnect()`
+
+Fecha a conexão. Seguro chamar múltiplas vezes.
+
+#### `execute_query(query, params=())`
+
+Executa consulta SQL e retorna lista de dicionários.
+
+#### `insert_element_state(element_id, state)`
+
+Salva estado do elemento usando INSERT OR REPLACE.
+
+**Parâmetros:**
+- `element_id`: Identificador único
+- `state`: Dicionário com x, y, w, h, r, g, b, a, z, metadata
+
+**Retorna:**
+- `True` em sucesso, `False` em falha.
+
+#### `get_element_state(element_id)`
+
+Obtém estado do elemento por ID.
+
+**Retorna:**
+- Dicionário com estado do elemento, ou `None` se não encontrado.
+
+#### `delete_element_state(element_id)`
+
+Exclui estado do elemento por ID.
+
+**Retorna:**
+- `True` se a linha foi excluída, `False` caso contrário.
+
+### `class RemoteAetherProvider(BaseAetherProvider)`
+
+Provedor proxy REST para PostgreSQL via endpoint do servidor.
+
+#### `__init__(base_url="http://localhost:5000")`
+
+**Parâmetros:**
+- `base_url`: URL base do servidor Aetheris.

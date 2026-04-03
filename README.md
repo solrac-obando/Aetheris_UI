@@ -34,6 +34,7 @@ The same Python physics logic drives **three native rendering pipelines**: HTML5
   - **Desktop**: ModernGL with SDF shaders + Pillow text textures
   - **Mobile**: Kivy with Y-axis coordinate inversion + hybrid labels
 - **Aether-Guard Safety** — L2 norm clamping, epsilon-protected division, NaN/Inf detection, and the 99% Rule (Epsilon Snapping) prevent numerical explosions.
+- **Aether-Data Bridge** — Populate UI elements from SQLite or PostgreSQL databases with automatic Min-Max normalization and AI embedding visualization.
 - **Server-Driven UI** — JSON Intent definitions compiled into physics coefficients at runtime via the TensorCompiler.
 - **Hyper-Damping** — Automatic shock absorption when window dimensions change drastically (>200px), preventing Hooke's Law kinetic overshoot.
 - **Hybrid Text Compositing** — Canvas-rendered text (fast, non-selectable) and DOM/Kivy Label overlays (selectable, accessible) coexist in the same scene.
@@ -157,6 +158,52 @@ intent = {
 builder = UIBuilder()
 builder.build_from_intent(engine, intent)
 # engine now has 3 elements with physics-driven positions
+```
+
+### Database-Driven Layout (Aether-Data Bridge)
+
+```python
+from core.engine import AetherEngine
+from core.ui_builder import UIBuilder
+from core.data_bridge import SQLiteProvider, min_max_scale
+
+# Create engine and builder
+engine = AetherEngine()
+builder = UIBuilder()
+
+# Connect to a local SQLite database
+db = SQLiteProvider("./my_app.db")
+db.connect()
+
+# Define how DB columns map to physics properties with Min-Max normalization
+template = {
+    "type": "static_box",
+    "columns": {
+        "x": {"source": "pos_x", "scale": [0, 1000, 10, 790]},
+        "y": {"source": "pos_y", "scale": [0, 1000, 10, 590]},
+        "w": {"source": "width", "scale": [0, 10000, 50, 500]},
+        "h": {"source": "height", "scale": [0, 10000, 50, 500]},
+        "z": {"source": "layer"},
+    },
+    "metadata_fields": ["title", "rating"],
+}
+
+# Build elements directly from database query
+count = builder.build_from_datasource(engine, db, "SELECT * FROM movies", template)
+print(f"Created {count} elements from database")
+
+db.disconnect()
+```
+
+### AI Embedding Visualization
+
+```python
+from core.data_bridge import vector_to_tensor
+
+# Convert a PostgreSQL vector embedding into a physics force
+embedding = [0.5, -0.3, 0.8, -0.1]  # AI embedding from pgvector
+force = vector_to_tensor(embedding, scale=100.0)
+# force = [50.0, -30.0, 80.0, -10.0] — ready for StateTensor.apply_force()
 ```
 
 ---

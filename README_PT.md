@@ -34,6 +34,7 @@ A mesma lógica física em Python impulsiona **três pipelines de renderização
   - **Desktop**: ModernGL com shaders SDF + texturas de texto Pillow
   - **Mobile**: Kivy com inversão do eixo Y + labels híbridos
 - **Segurança Aether-Guard** — Limitação por norma L2, divisão protegida por épsilon, detecção de NaN/Inf, e a Regra dos 99% (Ajuste por Épsilon) previnem explosões numéricas.
+- **Ponte Aether-Data** — População de elementos UI de bancos de dados SQLite ou PostgreSQL com normalização Min-Max automática e visualização de embeddings de IA.
 - **UI Impulsionada por Servidor** — Definições de Intenção JSON compiladas em coeficientes de física em tempo de execução via TensorCompiler.
 - **Hiper-Amortecimento** — Absorção automática de choques quando as dimensões da janela mudam drasticamente (>200px), prevenindo o overshoot cinético da Lei de Hooke.
 - **Composição de Texto Híbrida** — Texto renderizado no Canvas (rápido, não selecionável) e sobreposições de labels DOM/Kivy (selecionáveis, acessíveis) coexistem na mesma cena.
@@ -157,6 +158,40 @@ intent = {
 builder = UIBuilder()
 builder.build_from_intent(engine, intent)
 # engine agora tem 3 elementos com posições impulsionadas por física
+```
+
+### Layout Impulsionado por Banco de Dados (Ponte Aether-Data)
+
+```python
+from core.engine import AetherEngine
+from core.ui_builder import UIBuilder
+from core.data_bridge import SQLiteProvider
+
+engine = AetherEngine()
+builder = UIBuilder()
+
+# Conectar a um banco de dados SQLite local
+db = SQLiteProvider("./meu_app.db")
+db.connect()
+
+# Definir como colunas do BD mapeiam para propriedades de física
+template = {
+    "type": "static_box",
+    "columns": {
+        "x": {"source": "pos_x", "scale": [0, 1000, 10, 790]},
+        "y": {"source": "pos_y", "scale": [0, 1000, 10, 590]},
+        "w": {"source": "width", "scale": [0, 10000, 50, 500]},
+        "h": {"source": "height", "scale": [0, 10000, 50, 500]},
+        "z": {"source": "layer"},
+    },
+    "metadata_fields": ["title", "rating"],
+}
+
+# Construir elementos diretamente da consulta do banco de dados
+count = builder.build_from_datasource(engine, db, "SELECT * FROM movies", template)
+print(f"Criados {count} elementos do banco de dados")
+
+db.disconnect()
 ```
 
 ---

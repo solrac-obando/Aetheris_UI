@@ -390,3 +390,72 @@ Todas las operaciones están bien dentro del **presupuesto de 16.67ms** para 60 
 
 *Para documentación completa de la API, ver [API_REFERENCE_ES.md](API_REFERENCE_ES.md).*
 *Para el README principal en español, ver [../README_ES.md](../README_ES.md).*
+
+---
+
+## 10. Aether-Data: El Puente de Base de Datos
+
+### Resumen
+
+Aether-Data proporciona una interfaz unificada para poblar elementos de la UI desde bases de datos. Soporta:
+
+- **SQLite** — Persistencia local, compatible con WASM usando el sistema de archivos virtual de Pyodide
+- **PostgreSQL (vía proxy REST)** — Datos remotos de alto rendimiento, con protección de credenciales del lado del servidor
+
+### Normalización de Datos (Escalado Min-Max)
+
+Los valores de la base de datos a menudo tienen rangos que causarían comportamiento de física "explosivo" (por ejemplo, calificaciones de películas de 0 a 10,000). Aether-Data aplica **Escalado Min-Max de Álgebra Lineal** para normalizar estos valores a rangos de píxeles seguros:
+
+```
+escalado = objetivo_min + (valor - datos_min) * (objetivo_max - objetivo_min) / (datos_max - datos_min)
+```
+
+**Protección Aether-Guard:** La división usa protección por épsilon (`1e-9`) para prevenir división entre cero cuando `datos_min == datos_max`. La salida se limita a `[objetivo_min, objetivo_max]`.
+
+Rango objetivo predeterminado: `[10.0, 500.0]` píxeles — lo suficientemente grande para ser visible, lo suficientemente pequeño para permanecer en pantalla.
+
+### Arquitectura de Proveedores
+
+```
+┌─────────────────────────────────────────────────┐
+│              Motor Aetheris UI                  │
+│                                                  │
+│  UIBuilder.build_from_datasource()              │
+│         │                                        │
+│         ▼                                        │
+│  ┌──────────────────┐    ┌──────────────────┐   │
+│  │  SQLiteProvider  │    │RemoteAetherProv. │   │
+│  │  (Local/SQLite)  │    │ (Proxy REST)     │   │
+│  │                  │    │                  │   │
+│  │  - Connect       │    │  - /api/v1/      │   │
+│  │  - CRUD ops      │    │    db-bridge     │   │
+│  │  - Disconnect    │    │  - Sin creds BD  │   │
+│  └────────┬─────────┘    │    expuestos     │   │
+│           │              └────────┬─────────┘   │
+│           │                       │             │
+│           ▼                       ▼             │
+│    BD SQLite               Servidor Flask       │
+│    (archivo local)        ┌──────────────┐      │
+│                           │  PostgreSQL  │      │
+│                           │  (simulado)  │      │
+│                           └──────────────┘      │
+└─────────────────────────────────────────────────┘
+```
+
+### Vector-a-Tensor: Visualizando Embeddings de IA
+
+La utilidad `vector_to_tensor()` convierte embeddings `pgvector` de PostgreSQL en fuerzas de física:
+
+```python
+embedding = [0.5, -0.3, 0.8, -0.1]  # Embedding de IA
+fuerza = vector_to_tensor(embedding, scale=100.0)
+# fuerza = [50.0, -30.0, 80.0, -10.0]
+elemento.tensor.apply_force(fuerza)
+```
+
+Esto permite "Visualizar Embeddings de IA" — cada dimensión del embedding se convierte en un eje de fuerza (x, y, ancho, alto), permitiendo que la similitud semántica se manifieste como proximidad física.
+
+### Seguridad de Conexión
+
+- **SQLiteProvider**: Implementa `__del__`, `__enter__`, y `__exit__` para limpieza garantizada. Las conexiones se cierran automáticamente en la recolección de basura o al salir del context manager.
+- **RemoteAetherProvider**: Peticiones HTTP sin estado con timeouts configurables (`REMOTE_CONNECT_TIMEOUT = 5s`, `REMOTE_REQUEST_TIMEOUT = 10s`).
