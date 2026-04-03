@@ -34,7 +34,9 @@ def safe_divide(numerator, denominator, epsilon=EPSILON):
     """
     denom = np.maximum(np.abs(denominator), epsilon)
     sign = np.sign(denominator)
-    return numerator / (denom * sign)
+    # When sign is 0 (denominator was exactly 0), use 1.0 to avoid zeroing the result
+    safe_sign = np.where(sign == 0, 1.0, sign)
+    return numerator / (denom * safe_sign)
 
 
 def clamp_magnitude(vector, max_val):
