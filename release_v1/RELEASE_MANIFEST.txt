@@ -1,0 +1,31 @@
+AETHERIS UI RELEASE MANIFEST
+==================================================
+Version: 1.0.0
+Author: Carlos Ivan Obando Aure
+License: MIT
+Python: >=3.12
+
+INCLUDED:
+  - core/ (16 Python files)
+  - demo/ (2 Python files)
+  - wasm/ (0 Python files)
+  - templates/ (0 Python files)
+  - docs/ (0 Python files)
+  - scripts/ (1 Python files)
+  - main.py
+  - app_server.py
+  - pyproject.toml
+  - LICENSE
+  - requirements.txt
+  - README.md
+  - README_ES.md
+  - README_PT.md
+  - Dockerfile
+
+SHIELDED (not included):
+  - tests/ (private quality-control IP)
+  - .pytest_cache/ (test artifacts)
+  - __pycache__/ (compiled Python)
+  - *.nbc / *.nbi (Numba cache)
+  - *.db (generated databases)
+  - .git/ (version control)
