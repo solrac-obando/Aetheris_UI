@@ -5,8 +5,12 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies for OpenGL and Xvfb (Headless Rendering)
+# Set headless mode for ModernGL
+ENV MGL_WINDOW_BACKEND=headless
+
+# Install system dependencies for OpenGL, Xvfb (Headless Rendering), and build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     libgl1-mesa-dri \
     libgl1-mesa-glx \
     libgles2-mesa \
@@ -21,15 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Copy requirements and install dependencies (pinned versions for supply chain security)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the project files
 COPY . .
 
-# Set the environment variable for ModernGL (Headless mode)
-ENV MGL_WINDOW_BACKEND=headless
-
 # Default command: Run the test suite to ensure stability
-CMD ["python3", "-m", "pytest", "tests/test_engine.py", "-v"]
+CMD ["xvfb-run", "-a", "python3", "-m", "pytest", "tests/", "-v"]

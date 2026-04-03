@@ -1,13 +1,12 @@
-# --- Aetheris UI Core Dependencies ---
-numpy>=1.26.0
-numba>=0.59.0
-moderngl>=5.10.0
-moderngl-window>=2.4.4
+# --- Aetheris UI Core Dependencies (Pinned for Reproducibility) ---
+numpy==1.26.4
+numba==0.59.1
+moderngl==5.10.0
+moderngl-window==2.4.6
 
 # --- Testing & Dev ---
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
+pytest==8.1.1
+pytest-asyncio==0.23.6
 
 # --- Optional/System Utils ---
-# Xvfbwrapper is useful for headless CI/CD testing
-xvfbwrapper>=0.2.9
+xvfbwrapper==0.2.9
