@@ -4,8 +4,29 @@ Replaces Numba-optimized functions with standard NumPy vectorized operations.
 
 Mathematical Foundation: Same Hooke's Law and boundary force calculations
 as the Numba version - only the execution path differs.
+
+Aether-Guard: Includes L2 Norm clamping and NaN protection.
 """
 import numpy as np
+
+
+def clamp_vector_magnitude(vector: np.ndarray, max_val: float) -> np.ndarray:
+    """
+    Aether-Guard: Clamp vector magnitude (L2 Norm) while preserving direction.
+    
+    Linear Algebra: If ||v|| > max_val, then v_clamped = (v / ||v||) * max_val
+    
+    Args:
+        vector: Input vector
+        max_val: Maximum allowed magnitude
+        
+    Returns:
+        Vector with magnitude clamped to max_val
+    """
+    mag = np.linalg.norm(vector)
+    if mag > max_val and mag > 1e-9:
+        return (vector / mag) * max_val
+    return vector
 
 
 def calculate_restoring_force(current_state: np.ndarray, target_state: np.ndarray, spring_constant: float) -> np.ndarray:
@@ -15,22 +36,29 @@ def calculate_restoring_force(current_state: np.ndarray, target_state: np.ndarra
     
     Formula: Force = (target - current) * spring_constant
     
+    Aether-Guard: Clamps force magnitude to prevent explosive values.
+    
     Args:
         current_state: Current [x, y, w, h] as float32
         target_state: Target [x, y, w, h] as float32
         spring_constant: k value derived from transition time
         
     Returns:
-        Force vector as float32
+        Force vector as float32, magnitude-clamped
     """
     error = target_state - current_state
-    return (error * spring_constant).astype(np.float32)
+    force = (error * spring_constant).astype(np.float32)
+    
+    # Aether-Guard: Clamp force magnitude
+    return clamp_vector_magnitude(force, 10000.0)
 
 
 def calculate_boundary_forces(state: np.ndarray, container_w: float, container_h: float, boundary_stiffness: float) -> np.ndarray:
     """
     Calculates repulsion forces if the element crosses container boundaries.
     Pure NumPy version for WASM/Pyodide compatibility.
+    
+    Aether-Guard: Clamps boundary force magnitude.
     
     Args:
         state: Current [x, y, w, h] as float32
@@ -39,7 +67,7 @@ def calculate_boundary_forces(state: np.ndarray, container_w: float, container_h
         boundary_stiffness: Spring constant for boundary repulsion
         
     Returns:
-        Boundary force vector as float32
+        Boundary force vector as float32, magnitude-clamped
     """
     force = np.zeros(4, dtype=np.float32)
     x, y, w, h = state[0], state[1], state[2], state[3]
@@ -58,7 +86,8 @@ def calculate_boundary_forces(state: np.ndarray, container_w: float, container_h
     elif (y + h) > container_h:
         force[1] -= ((y + h) - container_h) * boundary_stiffness
 
-    return force
+    # Aether-Guard: Clamp boundary force magnitude
+    return clamp_vector_magnitude(force, 5000.0)
 
 
 def lerp_arrays(state_a: np.ndarray, state_b: np.ndarray, t: float) -> np.ndarray:
@@ -66,7 +95,7 @@ def lerp_arrays(state_a: np.ndarray, state_b: np.ndarray, t: float) -> np.ndarra
     Vectorized Linear Interpolation for high-dimensional arrays.
     Pure NumPy version for WASM/Pyodide compatibility.
     """
-    return (1.0 - t) * state_a + t * state_b
+    return ((1.0 - t) * state_a + t * state_b).astype(np.float32)
 
 
 def speed_to_stiffness(transition_time_ms: float) -> float:
