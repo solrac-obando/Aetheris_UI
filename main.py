@@ -6,11 +6,13 @@ Can switch between MockRenderer (headless), TkinterRenderer (visual), and GLRend
 import time
 import sys
 import numpy as np
+import json
 from core.engine import AetherEngine
 from core.elements import StaticBox, SmartPanel, SmartButton, FlexibleTextNode
 from core.renderer_base import MockRenderer
 from core.tkinter_renderer import TkinterRenderer
 from core.gl_renderer import GLRenderer
+from core.ui_builder import UIBuilder
 
 
 def main(use_tkinter=False, use_gl=False):
@@ -33,62 +35,104 @@ def main(use_tkinter=False, use_gl=False):
     # Initialize the mathematical engine (physics + AI)
     engine = AetherEngine()
     
-    # Create UI elements as specified in Phase 8 requirements
-    
-    # 1. SmartPanel with 5% padding (will adapt to container size)
-    smart_panel = SmartPanel(
-        color=(0.9, 0.2, 0.6, 0.8),  # Purpleish color
-        z=1
-    )
-    
-    # 2. FlexibleTextNode centered at the top
-    # We'll position it at y=10, with width 80% of container, height 40
-    # X position will be calculated to center it
-    flexible_text = FlexibleTextNode(
-        x=0, y=10, w=200, h=40,  # Initial values, will be overridden by asymptotes
-        color=(0.2, 0.6, 0.9, 1.0),  # Blue color
-        z=2,
-        text="Aetheris UI Physics Engine"
-    )
-    
-    # 3. SmartButton anchored to the panel with offset
-    button = SmartButton(
-        parent=smart_panel,
-        offset_x=10, offset_y=10,
-        offset_w=80, offset_h=30,
-        color=(0.8, 0.8, 0.2, 1.0),  # Yellow color
-        z=3
-    )
-    
-    # Also keep the original static box for comparison
-    static_box = StaticBox(
-        50, 50, 100, 80,
-        color=(0.2, 0.6, 0.9, 1.0),
-        z=0
-    )
-    
-    # Register elements with the engine
-    engine.register_element(static_box)
-    engine.register_element(smart_panel)
-    engine.register_element(flexible_text)
-    engine.register_element(button)
-    
-    # Register UI states for demonstration (Phase 10 feature)
-    # Desktop state: normal layout
-    desktop_state = {
-        smart_panel: np.array([40.0, 30.0, 720.0, 540.0], dtype=np.float32),  # 5% padding in 800x600
-        flexible_text: np.array([200.0, 10.0, 400.0, 40.0], dtype=np.float32),  # Centered
-        button: np.array([150.0, 140.0, 80.0, 30.0], dtype=np.float32)  # Example position
+    # Define the UI Intent - same as app_server.py for parity
+    ui_intent = {
+        "layout": "column",
+        "spacing": 20,
+        "animation": "organic",
+        "padding": 10,
+        "transition_speed_ms": 300,
+        "elements": [
+            {
+                "id": "header_panel",
+                "type": "smart_panel",
+                "padding": 0.03,
+                "color": [0.15, 0.15, 0.25, 1.0],
+                "z": 0,
+            },
+            {
+                "id": "title_text",
+                "type": "canvas_text",
+                "x": 40,
+                "y": 15,
+                "w": 400,
+                "h": 40,
+                "color": [0, 0, 0, 0],
+                "text_color": [1.0, 1.0, 1.0, 1.0],
+                "font_size": 24,
+                "font_family": "Arial",
+                "text_content": "Aetheris Hybrid Canvas Text",
+                "z": 5,
+            },
+            {
+                "id": "content_panel",
+                "type": "smart_panel",
+                "padding": 0.05,
+                "color": [0.2, 0.2, 0.3, 0.9],
+                "z": 1,
+            },
+            {
+                "id": "card_1",
+                "type": "static_box",
+                "x": 30,
+                "y": 30,
+                "w": 150,
+                "h": 200,
+                "color": [0.8, 0.2, 0.3, 0.9],
+                "z": 2,
+            },
+            {
+                "id": "card_2",
+                "type": "static_box",
+                "x": 200,
+                "y": 30,
+                "w": 150,
+                "h": 200,
+                "color": [0.2, 0.6, 0.9, 0.9],
+                "z": 2,
+            },
+            {
+                "id": "card_3",
+                "type": "static_box",
+                "x": 370,
+                "y": 30,
+                "w": 150,
+                "h": 200,
+                "color": [0.9, 0.7, 0.2, 0.9],
+                "z": 2,
+            },
+            {
+                "id": "action_button",
+                "type": "smart_button",
+                "parent": "content_panel",
+                "offset_x": 20,
+                "offset_y": 250,
+                "offset_w": 120,
+                "offset_h": 40,
+                "color": [0.3, 0.8, 0.3, 1.0],
+                "z": 3,
+            },
+            {
+                "id": "description",
+                "type": "dom_text",
+                "x": 50,
+                "y": 300,
+                "w": 500,
+                "h": 100,
+                "color": [0, 0, 0, 0],
+                "text_color": [0.8, 0.8, 0.8, 1.0],
+                "font_size": 16,
+                "font_family": "Arial",
+                "text_content": "This is selectable HTML text driven by a physics engine.",
+                "z": 10,
+            },
+        ]
     }
-    engine.register_state('desktop', desktop_state)
     
-    # Mobile state: different layout (simulating rotation or mobile view)
-    mobile_state = {
-        smart_panel: np.array([20.0, 20.0, 760.0, 360.0], dtype=np.float32),  # Different padding
-        flexible_text: np.array([100.0, 10.0, 600.0, 40.0], dtype=np.float32),  # Full width
-        button: np.array([50.0, 50.0, 100.0, 30.0], dtype=np.float32)  # Different position
-    }
-    engine.register_state('mobile', mobile_state)
+    # Build elements from intent using UIBuilder
+    builder = UIBuilder()
+    builder.build_from_intent(engine, ui_intent)
+    print(f"Built {engine.element_count} elements from UI intent")
     
     # Initialize the renderer based on choice
     if use_gl:
@@ -97,7 +141,7 @@ def main(use_tkinter=False, use_gl=False):
         renderer.init_window(800, 600, "Aetheris UI - GPU Rendering")
         
         # Run for specified number of frames or until interrupted
-        frames_to_run = 100  # Increased to show state transition
+        frames_to_run = 50
         if len(sys.argv) > 2:
             try:
                 frames_to_run = int(sys.argv[2])
@@ -105,71 +149,48 @@ def main(use_tkinter=False, use_gl=False):
                 pass
                 
         print(f"Starting render loop ({frames_to_run} frames for GPU validation)...")
-        print("State transition from 'desktop' to 'mobile' will occur at frame 50")
         print()
         
         for frame in range(frames_to_run):
-            if frame % 10 == 0:  # Print every 10 frames to reduce output
+            if frame % 10 == 0:
                 print(f"--- Frame {frame + 1} ---")
             
-            # Window size could change each frame (responsive design)
-            # Gradually increase size to test responsiveness
-            win_w = 800 + (frame * 2)  # Slow width increase
-            win_h = 600 + (frame * 1)  # Slow height increase
+            win_w = 800 + (frame * 2)
+            win_h = 600 + (frame * 1)
             
-            # State transition demonstration: switch to mobile state at frame 50
-            if frame == 50:
-                print(">> TRANSITIONING TO MOBILE STATE <<")
-                engine.transition_to('mobile')
-            
-            # Update the mathematical engine (physics + asymptote calculation)
+            # Update the mathematical engine
             data_buffer = engine.tick(win_w, win_h)
             
-            # Render using the decoupled renderer
-            renderer.clear_screen((0.1, 0.1, 0.1, 1.0))  # Dark gray background
-            renderer.render_frame(data_buffer)
+            # Get text metadata for the renderer (Phase 14.3)
+            engine_metadata = engine.get_ui_metadata()
+            
+            # Render using the decoupled renderer with metadata
+            renderer.clear_screen((0.1, 0.1, 0.1, 1.0))
+            renderer.render_frame(data_buffer, engine_metadata)
             renderer.swap_buffers()
             
-            # Print element positions every 10 frames for validation
-            if frame % 10 == 0 and len(data_buffer) >= 4:
-                static_rect = data_buffer[0]['rect']
-                panel_rect = data_buffer[1]['rect'] 
-                text_rect = data_buffer[2]['rect']
-                button_rect = data_buffer[3]['rect']
-                
-                print(f"  StaticBox:    [{static_rect[0]:.1f}, {static_rect[1]:.1f}, {static_rect[2]:.1f}, {static_rect[3]:.1f}]")
-                print(f"  SmartPanel:   [{panel_rect[0]:.1f}, {panel_rect[1]:.1f}, {panel_rect[2]:.1f}, {panel_rect[3]:.1f}]")
-                print(f"  FlexibleText: [{text_rect[0]:.1f}, {text_rect[1]:.1f}, {text_rect[2]:.1f}, {text_rect[3]:.1f}]")
-                print(f"  SmartButton:  [{button_rect[0]:.1f}, {button_rect[1]:.1f}, {button_rect[2]:.1f}, {button_rect[3]:.1f}]")
-                
-                # Calculate expected asymptotes for validation
-                expected_panel_x = win_w * 0.05  # 5% padding
-                expected_panel_y = win_h * 0.05
-                expected_panel_w = win_w * 0.9   # 90% width (100% - 2*5%)
-                expected_panel_h = win_h * 0.9
-                print(f"  Expected Panel: [{expected_panel_x:.1f}, {expected_panel_y:.1f}, {expected_panel_w:.1f}, {expected_panel_h:.1f}]")
+            if frame % 10 == 0 and len(data_buffer) >= 2:
+                for i, elem_data in enumerate(data_buffer):
+                    rect = elem_data['rect']
+                    z = elem_data['z']
+                    print(f"  Element {i} (z={z}): [{rect[0]:.1f}, {rect[1]:.1f}, {rect[2]:.1f}, {rect[3]:.1f}]")
                 print()
             
-            # Small delay to see the output (only for mock renderer)
             time.sleep(0.01)
          
         print()
         print("GPU validation complete! Notice how:")
         print("1. The renderer never touches DifferentialElement objects")
         print("2. Only the structured NumPy array flows from engine to renderer")
-        print("3. Mathematical engine handles physics, AI asymptotes, and temporal variation")
-        print("4. Renderer handles only visual presentation via GPU shaders")
-        print("5. Elements converge toward their asymptotes over time")
-        print("6. Rendering is hardware-accelerated using ModernGL and SDF shaders")
-        print("7. State management enables efficient UI transitions (desktop <-> mobile)")
-        print("8. UI Snap Threshold (99% Rule) prevents unnecessary computation at rest")
+        print("3. Text metadata bridge enables Pillow-rasterized text on GPU")
+        print("4. Elements converge toward their asymptotes over time")
+        print("5. Rendering is hardware-accelerated using ModernGL and SDF shaders")
         
     elif use_tkinter:
         print("Using TkinterRenderer for visual prototyping")
         renderer = TkinterRenderer()
         renderer.init_window(800, 600, "Aetheris UI - Tkinter Prototyping")
         
-        # Start the Tkinter main loop (this will block)
         try:
             renderer.start(engine)
         except KeyboardInterrupt:
@@ -181,69 +202,39 @@ def main(use_tkinter=False, use_gl=False):
         renderer = MockRenderer()
         renderer.init_window(800, 600, "Aetheris UI Demo")
         
-        # Main loop - run for 100 frames for validation
         print("Starting render loop (100 frames for headless validation)...")
-        print("State transition from 'desktop' to 'mobile' will occur at frame 50")
         print()
         
         for frame in range(100):
-            if frame % 20 == 0:  # Print every 20 frames to reduce output
+            if frame % 20 == 0:
                 print(f"--- Frame {frame + 1} ---")
             
-            # Window size could change each frame (responsive design)
-            # Gradually increase size to test responsiveness
-            win_w = 800 + (frame * 2)  # Slow width increase
-            win_h = 600 + (frame * 1)  # Slow height increase
+            win_w = 800 + (frame * 2)
+            win_h = 600 + (frame * 1)
             
-            # State transition demonstration: switch to mobile state at frame 50
-            if frame == 50:
-                print(">> TRANSITIONING TO MOBILE STATE <<")
-                engine.transition_to('mobile')
-            
-            # Update the mathematical engine (physics + asymptote calculation)
             data_buffer = engine.tick(win_w, win_h)
             
-            # Render using the decoupled renderer
-            renderer.clear_screen((0.1, 0.1, 0.1, 1.0))  # Dark gray background
+            renderer.clear_screen((0.1, 0.1, 0.1, 1.0))
             renderer.render_frame(data_buffer)
             renderer.swap_buffers()
             
-            # Print element positions every 20 frames for validation
             if frame % 20 == 0 and len(data_buffer) >= 4:
-                static_rect = data_buffer[0]['rect']
-                panel_rect = data_buffer[1]['rect'] 
-                text_rect = data_buffer[2]['rect']
-                button_rect = data_buffer[3]['rect']
-                
-                print(f"  StaticBox:    [{static_rect[0]:.1f}, {static_rect[1]:.1f}, {static_rect[2]:.1f}, {static_rect[3]:.1f}]")
-                print(f"  SmartPanel:   [{panel_rect[0]:.1f}, {panel_rect[1]:.1f}, {panel_rect[2]:.1f}, {panel_rect[3]:.1f}]")
-                print(f"  FlexibleText: [{text_rect[0]:.1f}, {text_rect[1]:.1f}, {text_rect[2]:.1f}, {text_rect[3]:.1f}]")
-                print(f"  SmartButton:  [{button_rect[0]:.1f}, {button_rect[1]:.1f}, {button_rect[2]:.1f}, {button_rect[3]:.1f}]")
-                
-                # Calculate expected asymptotes for validation
-                expected_panel_x = win_w * 0.05  # 5% padding
-                expected_panel_y = win_h * 0.05
-                expected_panel_w = win_w * 0.9   # 90% width (100% - 2*5%)
-                expected_panel_h = win_h * 0.9
-                print(f"  Expected Panel: [{expected_panel_x:.1f}, {expected_panel_y:.1f}, {expected_panel_w:.1f}, {expected_panel_h:.1f}]")
+                for i, elem_data in enumerate(data_buffer):
+                    rect = elem_data['rect']
+                    z = elem_data['z']
+                    print(f"  Element {i} (z={z}): [{rect[0]:.1f}, {rect[1]:.1f}, {rect[2]:.1f}, {rect[3]:.1f}]")
                 print()
             
-            # Small delay to see the output (only for mock renderer)
             time.sleep(0.01)
          
         print()
-        print("Headless validation complete! Notice how:")
+        print("Headless validation complete!")
         print("1. The renderer never touches DifferentialElement objects")
         print("2. Only the structured NumPy array flows from engine to renderer")
-        print("3. Mathematical engine handles physics, AI asymptotes, and temporal variation")
-        print("4. Renderer handles only visual presentation")
-        print("5. Elements converge toward their asymptotes over time")
-        print("6. State management enables efficient UI transitions (desktop <-> mobile)")
-        print("7. UI Snap Threshold (99% Rule) prevents unnecessary computation at rest")
+        print("3. Elements converge toward their asymptotes over time")
 
 
 if __name__ == "__main__":
-    # Check command line arguments for renderer selection
     use_tkinter = "--tkinter" in sys.argv
     use_gl = "--gl" in sys.argv
     

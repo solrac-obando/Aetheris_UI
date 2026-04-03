@@ -1,11 +1,14 @@
 """
 High-performance GPU renderer for Aetheris UI using ModernGL and SDF shaders.
 Implements hardware-accelerated rendering with Signed Distance Functions for
-anti-aliased rounded rectangles.
+anti-aliased rounded rectangles, plus Pillow-based text texture generation
+for native desktop text rendering.
 """
+import json
 import numpy as np
 import moderngl
 from typing import Union
+from PIL import Image, ImageDraw, ImageFont
 from core.renderer_base import BaseRenderer
 
 
@@ -15,6 +18,9 @@ class GLRenderer(BaseRenderer):
     This renderer implements the BaseRenderer contract using ModernGL with
     Signed Distance Function (SDF) shaders to render anti-aliased rounded
     rectangles with orthographic projection matching pixel coordinates.
+    
+    Text rendering is achieved by rasterizing text with Pillow into RGBA
+    textures, then rendering them as textured quads on the GPU.
     """
     
     def __init__(self):
@@ -24,36 +30,27 @@ class GLRenderer(BaseRenderer):
         self._prog = None
         self._vbo = None
         self._vao = None
+        self._text_textures = {}
+        self._text_prog = None
+        self._text_vbo = None
+        self._text_vao = None
 
     def init_window(self, width: int, height: int, title: str = "Aetheris UI") -> None:
-        """Initialize the ModernGL context and OpenGL resources.
-        
-        Creates a standalone OpenGL context suitable for headless operation
-        (e.g., inside Docker containers) and sets up shaders, buffers, and
-        vertex array objects for rendering.
-        
-        Args:
-            width: Window width in pixels
-            height: Window height in pixels
-            title: Window title (not used in headless context but kept for interface)
-        """
+        """Initialize the ModernGL context and OpenGL resources."""
         self._width = width
         self._height = height
         self._title = title
         
-        # Create standalone OpenGL context for headless operation
         self._ctx = moderngl.create_standalone_context(require=330)
-        
-        # Enable blending for transparency
         self._ctx.enable(moderngl.BLEND)
         self._ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
         
-        # Compile shaders
+        # SDF shader for rounded rectangles
         self._prog = self._ctx.program(
             vertex_shader='''
                 #version 330
-                in vec4 in_rect;   // [x, y, w, h]
-                in vec4 in_color;  // [r, g, b, a]
+                in vec4 in_rect;
+                in vec4 in_color;
                 uniform mat4 projection;
                 out vec4 v_color;
                 out vec2 v_texcoord;
@@ -63,9 +60,8 @@ class GLRenderer(BaseRenderer):
                 void main() {
                     v_color = in_color;
                     size = in_rect.zw;
-                    radius = 10.0; // Fixed radius for now
+                    radius = 10.0;
                     
-                    // Generate quad vertices based on gl_VertexID (0 to 3)
                     vec2 pos = vec2(0.0);
                     if(gl_VertexID == 0) { 
                         pos = vec2(in_rect.x, in_rect.y); 
@@ -101,162 +97,263 @@ class GLRenderer(BaseRenderer):
                 }
                 
                 void main() {
-                    // Traslación de Ejes: Center the coordinate system
                     vec2 p = (v_texcoord - 0.5) * size;
-                    
                     float d = roundedRectSDF(p, size * 0.5, radius);
-                    
-                    // Smoothstep for Anti-Aliasing
-                    float alpha = smoothstep(0.5, -0.5, d); 
-                    
+                    float alpha = smoothstep(0.5, -0.5, d);
                     f_color = vec4(v_color.rgb, v_color.a * alpha);
                 }
             '''
         )
         
-        # We'll create VBO and VAO in render_frame since we don't know the size yet
+        # Text shader - samples a texture quad
+        self._text_prog = self._ctx.program(
+            vertex_shader='''
+                #version 330
+                in vec2 in_pos;
+                in vec2 in_uv;
+                uniform mat4 projection;
+                out vec2 v_uv;
+                
+                void main() {
+                    v_uv = in_uv;
+                    gl_Position = projection * vec4(in_pos, 0.0, 1.0);
+                }
+            ''',
+            fragment_shader='''
+                #version 330
+                in vec2 v_uv;
+                uniform sampler2D text_texture;
+                out vec4 f_color;
+                
+                void main() {
+                    f_color = texture(text_texture, v_uv);
+                }
+            '''
+        )
+        
         self._vbo = None
         self._vao = None
+        self._text_vbo = None
+        self._text_vao = None
 
-    def clear_screen(self, color: Union[tuple, list, np.ndarray]) -> None:
-        """Clear the screen with a background color.
+    def _get_or_create_text_texture(self, text: str, font_size: int, 
+                                     color_rgba: tuple, font_family: str = "Arial") -> moderngl.Texture:
+        """Get or create a text texture from the cache.
+        
+        Uses Pillow to rasterize text into an RGBA texture that can be
+        sampled by the GPU text shader.
         
         Args:
-            color: RGBA color values (float32, 0-1 range)
+            text: Text string to render
+            font_size: Font size in pixels
+            color_rgba: RGBA tuple (0-255) for text color
+            font_family: Font family name
+            
+        Returns:
+            ModernGL texture object
         """
+        cache_key = (text, font_size, color_rgba, font_family)
+        if cache_key in self._text_textures:
+            return self._text_textures[cache_key]
+        
+        # Try to load a TrueType font, fall back to default
+        font = None
+        for font_path in [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        ]:
+            try:
+                font = ImageFont.truetype(font_path, font_size)
+                break
+            except (IOError, OSError):
+                continue
+        
+        if font is None:
+            try:
+                font = ImageFont.truetype("Arial.ttf", font_size)
+            except (IOError, OSError):
+                font = ImageFont.load_default()
+        
+        # Measure text size and create appropriately sized image
+        bbox = font.getbbox(text)
+        text_w = int(bbox[2] - bbox[0] + 4)  # Add padding
+        text_h = int(bbox[3] - bbox[1] + 4)
+        text_w = max(text_w, 1)
+        text_h = max(text_h, 1)
+        
+        # Create transparent image
+        img = Image.new('RGBA', (text_w, text_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        
+        # Draw text centered in the image
+        offset_x = -bbox[0] + 2
+        offset_y = -bbox[1] + 2
+        draw.text((offset_x, offset_y), text, font=font, fill=color_rgba)
+        
+        # Convert to bytes and create texture
+        img_data = img.tobytes()
+        texture = self._ctx.texture(
+            size=(text_w, text_h),
+            components=4,
+            data=img_data,
+        )
+        texture.filter = (moderngl.LINEAR, moderngl.LINEAR)
+        
+        self._text_textures[cache_key] = texture
+        return texture
+
+    def clear_screen(self, color: Union[tuple, list, np.ndarray]) -> None:
+        """Clear the screen with a background color."""
         if self._ctx is None:
             return
-            
-        # Convert to tuple if needed
         if isinstance(color, np.ndarray):
             color_tuple = tuple(color)
         else:
             color_tuple = color
-            
-        # Clear with the specified color
         self._ctx.clear(color_tuple[0], color_tuple[1], color_tuple[2], color_tuple[3])
 
-    def render_frame(self, data_buffer: np.ndarray) -> None:
+    def render_frame(self, data_buffer: np.ndarray, engine_metadata: str = None) -> None:
         """Render a frame from the structured data buffer using GPU acceleration.
-        
-        Flattens the structured NumPy array to float32 bytes and uploads to GPU
-        VBO for efficient rendering with SDF shaders.
         
         Args:
             data_buffer: Structured array from AetherEngine.tick()
-                        with dtype [('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')]
+            engine_metadata: JSON string from engine.get_ui_metadata() containing
+                           text element metadata (canvas_text, dom_text types)
         """
         if self._ctx is None or self._prog is None or len(data_buffer) == 0:
             return
-            
-        rects = data_buffer['rect']  # Shape: (n_elements, 4) [x, y, w, h]
-        colors = data_buffer['color']  # Shape: (n_elements, 4) [r, g, b, a]
         
-        # We need 4 vertices per element for the quad.
-        # We just duplicate the [x,y,w,h, r,g,b,a] data 4 times per element.
+        rects = data_buffer['rect']
+        colors = data_buffer['color']
+        z_indices = data_buffer['z']
         n_elements = len(data_buffer)
-        vertex_data = np.zeros((n_elements * 4, 8), dtype=np.float32)
+        
+        # Parse metadata if provided
+        text_metadata = {}
+        if engine_metadata:
+            try:
+                text_metadata = json.loads(engine_metadata)
+            except (json.JSONDecodeError, TypeError):
+                text_metadata = {}
+        
+        # Separate regular elements from text elements
+        regular_indices = []
+        text_elements = []
         
         for i in range(n_elements):
-            base_idx = i * 4
-            # Duplicate the data for the 4 corners of the quad
-            for j in range(4):
-                vertex_data[base_idx + j, 0:4] = rects[i]
-                vertex_data[base_idx + j, 4:8] = colors[i]
+            z = int(z_indices[i])
+            z_key = str(z)
+            if z_key in text_metadata:
+                meta = text_metadata[z_key]
+                elem_type = meta.get('type', '')
+                if elem_type in ('canvas_text', 'dom_text'):
+                    text_elements.append((i, meta))
+                    continue
+            regular_indices.append(i)
+        
+        # Render regular elements (SDF quads)
+        if regular_indices:
+            n_regular = len(regular_indices)
+            vertex_data = np.zeros((n_regular * 4, 8), dtype=np.float32)
+            
+            for vi, i in enumerate(regular_indices):
+                base_idx = vi * 4
+                for j in range(4):
+                    vertex_data[base_idx + j, 0:4] = rects[i]
+                    vertex_data[base_idx + j, 4:8] = colors[i]
+            
+            vertex_bytes = vertex_data.tobytes()
+            if self._vbo is None or self._vbo.size < len(vertex_bytes):
+                if self._vbo is not None:
+                    self._vbo.release()
+                self._vbo = self._ctx.buffer(reserve=max(len(vertex_bytes), 1024 * 1024))
+            self._vbo.write(vertex_bytes)
+            
+            if self._vao is not None:
+                self._vao.release()
+            self._vao = self._ctx.vertex_array(
+                self._prog,
+                [(self._vbo, '4f 4f', 'in_rect', 'in_color')]
+            )
+            
+            proj_matrix = np.array([
+                [2.0 / self._width, 0.0, 0.0, -1.0],
+                [0.0, -2.0 / self._height, 0.0, 1.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0]
+            ], dtype=np.float32)
+            
+            self._prog['projection'].write(proj_matrix.tobytes())
+            self._vao.render(moderngl.TRIANGLE_STRIP, vertices=n_regular * 4)
+        
+        # Render text elements (textured quads)
+        if text_elements and self._text_prog is not None:
+            proj_matrix = np.array([
+                [2.0 / self._width, 0.0, 0.0, -1.0],
+                [0.0, -2.0 / self._height, 0.0, 1.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0]
+            ], dtype=np.float32)
+            self._text_prog['projection'].write(proj_matrix.tobytes())
+            
+            for i, meta in text_elements:
+                rect = rects[i]
+                x, y, w, h = float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])
                 
-        vertex_bytes = vertex_data.tobytes()
-        
-        if self._vbo is None or self._vbo.size < len(vertex_bytes):
-            if self._vbo is not None: 
-                self._vbo.release()
-            self._vbo = self._ctx.buffer(reserve=max(len(vertex_bytes), 1024 * 1024))  # At least 1MB
-            
-        self._vbo.write(vertex_bytes)
-        
-        if self._vao is not None: 
-            self._vao.release()
-            
-        self._vao = self._ctx.vertex_array(
-            self._prog,
-            [(self._vbo, '4f 4f', 'in_rect', 'in_color')]
-        )
-        
-        # Calculate projection matrix dynamically based on current width/height
-        # Matrix from Part 1: P = [[2/W, 0, 0, -1], [0, -2/H, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1]]
-        proj_matrix = np.array([
-            [2.0 / self._width, 0.0, 0.0, -1.0],
-            [0.0, -2.0 / self._height, 0.0, 1.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0]
-        ], dtype=np.float32)
-        
-        self._prog['projection'].write(proj_matrix.tobytes())
-        
-        # Render using triangle strip (0,1,2,3 for each quad gives us two triangles)
-        self._vao.render(moderngl.TRIANGLE_STRIP, vertices=n_elements * 4)
+                text = meta.get('text', '')
+                font_size = meta.get('size', 16)
+                font_family = meta.get('family', 'Arial')
+                text_color = meta.get('color', [1.0, 1.0, 1.0, 1.0])
+                
+                # Convert float 0-1 to int 0-255
+                r = int(text_color[0] * 255)
+                g = int(text_color[1] * 255)
+                b = int(text_color[2] * 255)
+                a = int(text_color[3] * 255)
+                
+                texture = self._get_or_create_text_texture(text, font_size, (r, g, b, a), font_family)
+                
+                # Create quad vertices for text: [x, y] + [u, v]
+                # Flip Y for OpenGL (screen coords: Y down, OpenGL: Y up)
+                text_vertex_data = np.array([
+                    x,       y,        0.0, 1.0,  # bottom-left
+                    x + w,   y,        1.0, 1.0,  # bottom-right
+                    x,       y + h,    0.0, 0.0,  # top-left
+                    x + w,   y + h,    1.0, 0.0,  # top-right
+                ], dtype=np.float32)
+                
+                text_bytes = text_vertex_data.tobytes()
+                if self._text_vbo is None or self._text_vbo.size < len(text_bytes):
+                    if self._text_vbo is not None:
+                        self._text_vbo.release()
+                    self._text_vbo = self._ctx.buffer(reserve=max(len(text_bytes), 4096))
+                self._text_vbo.write(text_bytes)
+                
+                if self._text_vao is not None:
+                    self._text_vao.release()
+                self._text_vao = self._ctx.vertex_array(
+                    self._text_prog,
+                    [(self._text_vbo, '2f 2f', 'in_pos', 'in_uv')]
+                )
+                
+                # Bind texture and render
+                texture.use(location=0)
+                self._text_prog['text_texture'].value = 0
+                self._text_vao.render(moderngl.TRIANGLE_STRIP, vertices=4)
 
     def swap_buffers(self) -> None:
-        """Finalize the frame and present it to the screen.
-        
-        In standalone ModernGL context, this ensures all commands are executed.
-        """
+        """Finalize the frame and present it to the screen."""
         if self._ctx is not None:
             self._ctx.finish()
 
-    # Abstract method implementations from BaseRenderer
-    # These are not used in our optimized render_frame path but required by the interface
-    
     def draw_rect(self, rect: np.ndarray, color: np.ndarray, z: int) -> None:
-        """Draw a rectangle.
-        
-        This implementation is provided for completeness but not used in our optimized path.
-        The actual rendering happens in render_frame() via the structured array approach.
-        
-        Args:
-            rect: [x, y, width, height] in pixel coordinates
-            color: RGBA color values (float32, 0-1 range)
-            z: Z-index for rendering depth
-        """
-        # For completeness, we could implement immediate mode rendering here
-        # but it would be inefficient. The proper way is to batch all draw calls
-        # into the structured array approach used in render_frame.
         pass
 
     def draw_rounded_rect(self, rect: np.ndarray, color: np.ndarray, z: int, radius: float) -> None:
-        """Draw a rectangle with rounded corners.
-        
-        This implementation is provided for completeness but not used in our optimized path.
-        The actual rendering happens in render_frame() via the structured array approach.
-        
-        Args:
-            rect: [x, y, width, height] in pixel coordinates
-            color: RGBA color values (float32, 0-1 range)
-            z: Z-index for rendering depth
-            radius: Corner radius in pixels
-        """
-        # For completeness, we could implement immediate mode rendering here
-        # but it would be inefficient. The proper way is to batch all draw calls
-        # into the structured array approach used in render_frame.
         pass
 
     def draw_text(self, text: str, pos: np.ndarray, size: int, color: np.ndarray) -> None:
-        """Draw text.
-        
-        This implementation is provided for completeness but not used in our optimized path.
-        Text rendering would require a separate approach (bitmap fonts, distance field fonts, etc.)
-        and is not implemented in this GPU renderer phase.
-        
-        Args:
-            text: String to render
-            pos: [x, y] position in pixel coordinates (baseline)
-            size: Font size in pixels
-            color: RGBA color values (float32, 0-1 range)
-        """
-        # Text rendering is not implemented in this phase
-        # In a full implementation, we would use either:
-        # 1. Bitmap font textures
-        # 2. Signed Distance Field (SDF) fonts
-        # 3. Vector text rendering
         pass
 
     def __del__(self):
@@ -266,9 +363,18 @@ class GLRenderer(BaseRenderer):
                 self._vao.release()
             if self._vbo is not None:
                 self._vbo.release()
+            if self._text_vao is not None:
+                self._text_vao.release()
+            if self._text_vbo is not None:
+                self._text_vbo.release()
             if self._prog is not None:
                 self._prog.release()
+            if self._text_prog is not None:
+                self._text_prog.release()
+            for tex in self._text_textures.values():
+                tex.release()
+            self._text_textures.clear()
             if self._ctx is not None:
                 self._ctx.release()
         except:
-            pass  # Ignore errors during cleanup
+            pass
