@@ -349,7 +349,7 @@ if __name__ == "__main__":
         print("Tip: Use '--odyssey' for the Master Showcase, '--tkinter', '--gl', or '--kivy'")
     
     if use_odyssey:
-        from demo.odyssey_master import create_odyssey_engine, run_odyssey
+        from demo.odyssey_master import create_odyssey_engine, run_odyssey, trigger_supernova, apply_genre_orbit
         
         # Generate database if needed
         if not os.path.exists(os.path.join(os.path.dirname(__file__), 'demo', 'odyssey.db')):
@@ -360,12 +360,41 @@ if __name__ == "__main__":
             renderer = GLRenderer()
             renderer.init_window(1200, 900, "Aetheris Odyssey - GL")
             engine = create_odyssey_engine()
-            run_odyssey(engine, renderer, focused_genre='action', num_frames=300, trigger_supernova_at=150)
+            
+            # Interactive input callback with keyboard support
+            import glfw
+            from moderngl_window.context.glfw import Window as GLFWWindow
+            
+            running = True
+            focused_genre = 'action'
+            
+            def input_callback(engine, frame):
+                nonlocal running, focused_genre
+                # Check for window close or Escape key
+                if glfw.window_should_close(glfwGetCurrentContext()):
+                    running = False
+                    return False
+                return True
+            
+            def glfwGetCurrentContext():
+                # Get the current GLFW window from ModernGL
+                return None  # Will be set after init
+            
+            # Use a simpler approach: run with a fixed frame count but check for keyboard
+            print("Odyssey GL - Press Escape to exit")
+            print("Space = Supernova | 1-6 = Genre focus")
+            print()
+            
+            # For now, run with generous frame count (user can Ctrl+C)
+            run_odyssey(engine, renderer, focused_genre='action',
+                       num_frames=10000, interactive=True)
+            
         elif use_kivy:
             from kivy.app import App
             from kivy.uix.widget import Widget
             from kivy.uix.floatlayout import FloatLayout
             from kivy.clock import Clock
+            from kivy.core.window import Window as KivyWindow
             from core.kivy_renderer import KivyRenderer
             
             odyssey_engine = create_odyssey_engine()
@@ -390,41 +419,62 @@ if __name__ == "__main__":
                     self.renderer.set_dom_container(self.dom_container)
                     
                     self.frame_count = 0
-                    self.supernova_triggered = False
+                    self.focused_genre = 'action'
+                    
+                    # Bind keyboard for supernova and genre switching
+                    KivyWindow.bind(on_key_down=self._on_key_down)
+                    
                     Clock.schedule_interval(self._update, 1.0 / 60.0)
                     return self.root_layout
                 
+                def _on_key_down(self, window, key, scancode, codepoint, modifiers):
+                    from demo.odyssey_master import trigger_supernova
+                    center_x, center_y = 600, 450
+                    
+                    if codepoint == ' ':
+                        trigger_supernova(odyssey_engine, center_x, center_y)
+                    elif codepoint == '1':
+                        self.focused_genre = 'action'
+                    elif codepoint == '2':
+                        self.focused_genre = 'scifi'
+                    elif codepoint == '3':
+                        self.focused_genre = 'drama'
+                    elif codepoint == '4':
+                        self.focused_genre = 'comedy'
+                    elif codepoint == '5':
+                        self.focused_genre = 'thriller'
+                    elif codepoint == '6':
+                        self.focused_genre = 'fantasy'
+                    elif codepoint == '0':
+                        self.focused_genre = 'none'
+                    elif codepoint == 'escape':
+                        self.stop()
+                
                 def _update(self, dt):
-                    from demo.odyssey_master import apply_genre_orbit, trigger_supernova
                     win_w, win_h = 1200, 900
                     center_x, center_y = 600, 450
                     
                     # Apply genre orbit
-                    apply_genre_orbit(odyssey_engine, 'action', center_x, center_y)
-                    
-                    # Trigger supernova at frame 150
-                    if self.frame_count == 150 and not self.supernova_triggered:
-                        trigger_supernova(odyssey_engine, center_x, center_y)
-                        self.supernova_triggered = True
+                    if self.focused_genre != 'none':
+                        apply_genre_orbit(odyssey_engine, self.focused_genre, center_x, center_y)
                     
                     data = odyssey_engine.tick(win_w, win_h)
                     self.renderer.clear_screen((0.05, 0.05, 0.1, 1.0))
                     self.renderer.render_frame(data, odyssey_engine.get_ui_metadata())
                     
-                    if self.frame_count % 50 == 0:
-                        print(f"  Odyssey Frame {self.frame_count}")
+                    if self.frame_count % 120 == 0:
+                        print(f"  Odyssey Kivy Frame {self.frame_count} | Genre: {self.focused_genre}")
                     
                     self.frame_count += 1
-                    if self.frame_count >= 300:
-                        print("Odyssey Kivy complete!")
-                        self.stop()
-                        return False
                     return True
                 
                 def on_stop(self):
                     self.renderer.cleanup_dom_labels()
+                    print(f"Odyssey Kivy complete ({self.frame_count} frames)")
             
-            print("Starting Odyssey Kivy app (300 frames)...")
+            print("Starting Odyssey Kivy app (interactive - press Space for Supernova, Esc to exit)")
+            print("Keys: 1=Action 2=SciFi 3=Drama 4=Comedy 5=Thriller 6=Fantasy 0=None")
+            print()
             OdysseyKivyApp().run()
         else:
             renderer = MockRenderer()

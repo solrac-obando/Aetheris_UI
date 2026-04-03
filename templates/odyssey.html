@@ -640,6 +640,14 @@ print(f"Odyssey Engine: {engine.element_count} elements")
             document.getElementById('supernova-btn').addEventListener('click', () => {
                 triggerSupernova();
             });
+            
+            // Keyboard shortcut: Space bar triggers supernova
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    triggerSupernova();
+                }
+            });
         }
 
         // Setup tooltip

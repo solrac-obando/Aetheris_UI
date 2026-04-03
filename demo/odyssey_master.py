@@ -277,35 +277,54 @@ def trigger_supernova(engine: AetherEngine, center_x: float, center_y: float) ->
 
 
 def run_odyssey(engine: AetherEngine, renderer, focused_genre: str = None,
-                num_frames: int = 300, trigger_supernova_at: int = None) -> None:
+                num_frames: int = 300, trigger_supernova_at: int = None,
+                interactive: bool = False, input_callback=None) -> None:
     """
     Run the Odyssey simulation loop.
+    
+    Supports both finite benchmark mode (for testing) and infinite interactive mode
+    (for the persistent application).
     
     Args:
         engine: The AetherEngine instance
         renderer: Any renderer implementing BaseRenderer interface
         focused_genre: Optional genre to apply orbit attraction
-        num_frames: Number of frames to run
+        num_frames: Number of frames to run (ignored in interactive mode)
         trigger_supernova_at: Frame number to trigger supernova (None = never)
+        interactive: If True, runs infinite loop until renderer signals exit
+        input_callback: Optional callback for processing input events each frame.
+                      Should return True to continue, False to exit.
     """
     win_w = 1200
     win_h = 900
     center_x = win_w / 2.0
     center_y = win_h / 2.0
     
-    print(f"Starting Odyssey simulation ({num_frames} frames)")
+    if interactive:
+        print(f"Starting Odyssey in INTERACTIVE mode")
+    else:
+        print(f"Starting Odyssey simulation ({num_frames} frames)")
     print(f"Elements: {engine.element_count}")
     if focused_genre:
         print(f"Genre Focus: {focused_genre}")
     print()
     
-    for frame in range(num_frames):
+    frame = 0
+    running = True
+    
+    while running:
+        # In interactive mode, process input events
+        if interactive and input_callback is not None:
+            running = input_callback(engine, frame)
+            if not running:
+                break
+        
         # Apply genre orbit if focused
         if focused_genre:
             apply_genre_orbit(engine, focused_genre, center_x, center_y)
         
-        # Trigger supernova at specified frame
-        if trigger_supernova_at is not None and frame == trigger_supernova_at:
+        # Trigger supernova at specified frame (benchmark mode only)
+        if not interactive and trigger_supernova_at is not None and frame == trigger_supernova_at:
             trigger_supernova(engine, center_x, center_y)
         
         # Run physics tick
@@ -322,8 +341,8 @@ def run_odyssey(engine: AetherEngine, renderer, focused_genre: str = None,
         
         renderer.swap_buffers()
         
-        # Print status every 50 frames
-        if frame % 50 == 0 or (trigger_supernova_at and abs(frame - trigger_supernova_at) <= 5):
+        # Print status periodically
+        if frame % 50 == 0 or (not interactive and trigger_supernova_at and abs(frame - trigger_supernova_at) <= 5):
             # Calculate average displacement from original positions
             total_disp = 0.0
             for elem in engine._elements:
@@ -333,7 +352,17 @@ def run_odyssey(engine: AetherEngine, renderer, focused_genre: str = None,
                     total_disp += np.sqrt(dx * dx + dy * dy)
             avg_disp = total_disp / max(1, len(engine._elements))
             
-            label = "SUPERNOVA!" if (trigger_supernova_at and abs(frame - trigger_supernova_at) <= 5) else "Stable"
-            print(f"  Frame {frame:4d} | {label:12s} | Avg displacement: {avg_disp:.1f}px")
+            if not interactive and trigger_supernova_at and abs(frame - trigger_supernova_at) <= 5:
+                label = "SUPERNOVA!"
+            else:
+                label = "Interactive" if interactive else "Stable"
+            print(f"  Frame {frame:5d} | {label:12s} | Avg displacement: {avg_disp:.1f}px")
+        
+        frame += 1
+        
+        # In benchmark mode, exit after num_frames
+        if not interactive and frame >= num_frames:
+            break
     
-    print(f"\nOdyssey simulation complete ({num_frames} frames)")
+    mode = "interactive" if interactive else "benchmark"
+    print(f"\nOdyssey {mode} complete ({frame} frames)")

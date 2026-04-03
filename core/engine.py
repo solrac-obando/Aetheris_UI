@@ -10,6 +10,11 @@ from core.tensor_compiler import TensorCompiler
 from core.input_manager import InputManager
 
 
+# Odyssey constants
+GENRE_ORBIT_STIFFNESS = 0.05
+SUPERNOVA_FORCE = 100_000.0
+
+
 class AetherEngine:
     def __init__(self):
         self._elements: List[DifferentialElement] = []
@@ -172,3 +177,62 @@ class AetherEngine:
                 z_key = str(element._z_index)
                 metadata[z_key] = element.text_metadata
         return json.dumps(metadata)
+    
+    def _apply_genre_orbit(self, genre_idx: int, stiffness: float,
+                           center_x: float, center_y: float) -> None:
+        """
+        Apply Hooke's Law attraction toward center for elements matching the focused genre.
+        
+        Args:
+            genre_idx: Index into genre_vector (0=Action, 1=SciFi, 2=Drama, 3=Comedy)
+            stiffness: Spring constant for orbit attraction
+            center_x: X coordinate of orbit center
+            center_y: Y coordinate of orbit center
+        """
+        for element in self._elements:
+            if not hasattr(element, '_odyssey_metadata'):
+                continue
+            
+            meta = element._odyssey_metadata
+            gv = meta.get('genre_vector', [0.25, 0.25, 0.25, 0.25])
+            match_strength = gv[genre_idx] if genre_idx < len(gv) else 0.0
+            
+            if match_strength > 0.3:
+                rect = element.tensor.state
+                cx = float(rect[0]) + float(rect[2]) / 2.0
+                cy = float(rect[1]) + float(rect[3]) / 2.0
+                
+                dx = center_x - cx
+                dy = center_y - cy
+                
+                force_x = dx * stiffness * match_strength
+                force_y = dy * stiffness * match_strength
+                
+                element.tensor.apply_force(
+                    np.array([force_x, force_y, 0.0, 0.0], dtype=np.float32)
+                )
+    
+    def _trigger_supernova(self, center_x: float, center_y: float) -> None:
+        """
+        Apply a massive radial explosion force to all elements.
+        Aether-Guard will clamp the forces to safe levels.
+        
+        Args:
+            center_x: X coordinate of supernova center
+            center_y: Y coordinate of supernova center
+        """
+        for element in self._elements:
+            rect = element.tensor.state
+            cx = float(rect[0]) + float(rect[2]) / 2.0
+            cy = float(rect[1]) + float(rect[3]) / 2.0
+            
+            dx = cx - center_x
+            dy = cy - center_y
+            dist = max(1.0, np.sqrt(dx * dx + dy * dy))
+            
+            force_x = (dx / dist) * SUPERNOVA_FORCE
+            force_y = (dy / dist) * SUPERNOVA_FORCE
+            
+            element.tensor.apply_force(
+                np.array([force_x, force_y, 0.0, 0.0], dtype=np.float32)
+            )
