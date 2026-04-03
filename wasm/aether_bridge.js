@@ -47,6 +47,7 @@
             'core/elements.py',
             'core/engine.py',
             'core/renderer_base.py',
+            'core/ui_builder.py',
         ];
 
         // Create core directory
@@ -69,50 +70,38 @@
     }
 
     /**
-     * Initialize the Python AetherEngine with test elements.
+     * Initialize the Python AetherEngine using server-driven UI Intent JSON.
+     * Reads the JSON from the injected script tag and passes it to Pyodide's
+     * UIBuilder to dynamically create and register elements.
      */
     async function initEngine() {
+        // Read the server-injected UI Intent JSON
+        const intentEl = document.getElementById('aether-intent');
+        const intentJsonString = intentEl ? intentEl.textContent.trim() : '{}';
+
+        // Escape any problematic characters for safe Python string embedding
+        const safeIntent = intentJsonString.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
         await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, '/')
 
+import json
 import numpy as np
 from core.engine import AetherEngine
-from core.elements import StaticBox, SmartPanel, SmartButton, FlexibleTextNode
-from core.tensor_compiler import TensorCompiler
+from core.ui_builder import UIBuilder
 
-# Create engine
+# Create engine and builder
 engine = AetherEngine()
+builder = UIBuilder()
 
-# Create UI elements
-smart_panel = SmartPanel(color=(0.9, 0.2, 0.6, 0.8), z=1)
-flexible_text = FlexibleTextNode(x=0, y=10, w=200, h=40, color=(0.2, 0.6, 0.9, 1.0), z=2, text="Aetheris UI WASM")
-button = SmartButton(parent=smart_panel, offset_x=10, offset_y=10, offset_w=80, offset_h=30, color=(0.8, 0.8, 0.2, 1.0), z=3)
-static_box = StaticBox(50, 50, 100, 80, color=(0.2, 0.6, 0.9, 1.0), z=0)
+# Load intent from server-driven JSON
+intent_data = json.loads("""${safeIntent}""")
 
-# Register elements
-engine.register_element(static_box)
-engine.register_element(smart_panel)
-engine.register_element(flexible_text)
-engine.register_element(button)
+# Build elements from intent and register with engine
+builder.build_from_intent(engine, intent_data)
 
-# Compile physics coefficients
-compiler = TensorCompiler()
-coefficients = compiler.compile_intent({
-    "layout": "column",
-    "spacing": 20,
-    "animation": "organic",
-    "padding": 10,
-    "elements": [
-        {"id": "static_box", "animation": "rigid"},
-        {"id": "smart_panel", "animation": "organic"},
-        {"id": "flexible_text", "animation": "fluid"},
-        {"id": "button", "animation": "snappy"},
-    ]
-})
-compiler.apply_coefficients(engine, coefficients)
-
-print(f"Aetheris Engine initialized with {engine.element_count} elements")
+print(f"Aetheris Engine initialized with {engine.element_count} elements from server intent")
         `);
 
         // Get engine reference from Python globals
