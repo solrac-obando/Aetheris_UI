@@ -280,11 +280,36 @@ def db_bridge():
     return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
 
 
+@app.route('/odyssey')
+def odyssey():
+    """Serve the Odyssey demo page."""
+    return render_template('odyssey.html')
+
+
+@app.route('/api/odyssey/elements')
+def odyssey_elements():
+    """API endpoint returning Odyssey media elements for the web frontend."""
+    from demo.odyssey_db import create_database
+    from core.data_bridge import SQLiteProvider
+    
+    db_path = os.path.join(PROJECT_ROOT, 'demo', 'odyssey.db')
+    if not os.path.exists(db_path):
+        create_database(db_path)
+    
+    provider = SQLiteProvider(db_path)
+    provider.connect()
+    rows = provider.execute_query("SELECT * FROM media ORDER BY year ASC")
+    provider.disconnect()
+    
+    return jsonify({"elements": rows, "count": len(rows)})
+
+
 if __name__ == '__main__':
     print("=" * 50)
     print("Aetheris UI - Flask Server-Driven UI")
     print("=" * 50)
     print("Open: http://localhost:5000/")
     print("API:  http://localhost:5000/api/intent")
+    print("Odyssey: http://localhost:5000/odyssey")
     print("=" * 50)
     app.run(debug=True, host='0.0.0.0', port=5000)

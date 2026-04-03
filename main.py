@@ -327,15 +327,18 @@ if __name__ == "__main__":
     use_tkinter = "--tkinter" in sys.argv
     use_gl = "--gl" in sys.argv
     use_kivy = "--kivy" in sys.argv
+    use_odyssey = "--odyssey" in sys.argv
     
     # Remove our flags from sys.argv so Kivy doesn't complain
-    sys.argv = [a for a in sys.argv if a not in ('--tkinter', '--gl', '--kivy')]
+    sys.argv = [a for a in sys.argv if a not in ('--tkinter', '--gl', '--kivy', '--odyssey')]
     
     # Disable Kivy's argument parser to avoid conflicts
     import os
     os.environ['KIVY_NO_ARGS'] = '1'
     
-    if use_kivy:
+    if use_odyssey:
+        print("Starting Aetheris Odyssey - The Master Showcase")
+    elif use_kivy:
         print("Starting with Kivy renderer (native mobile mode)")
     elif use_gl:
         print("Starting with GL renderer (GPU-accelerated mode)")
@@ -343,5 +346,90 @@ if __name__ == "__main__":
         print("Starting with Tkinter renderer (visual mode)")
     else:
         print("Starting with Mock renderer (headless validation mode)")
-        print("Tip: Use '--tkinter', '--gl', or '--kivy' for different renderers")
-    main(use_tkinter=use_tkinter, use_gl=use_gl, use_kivy=use_kivy)
+        print("Tip: Use '--odyssey' for the Master Showcase, '--tkinter', '--gl', or '--kivy'")
+    
+    if use_odyssey:
+        from demo.odyssey_master import create_odyssey_engine, run_odyssey
+        
+        # Generate database if needed
+        if not os.path.exists(os.path.join(os.path.dirname(__file__), 'demo', 'odyssey.db')):
+            from demo.odyssey_db import create_database
+            create_database()
+        
+        if use_gl:
+            renderer = GLRenderer()
+            renderer.init_window(1200, 900, "Aetheris Odyssey - GL")
+            engine = create_odyssey_engine()
+            run_odyssey(engine, renderer, focused_genre='action', num_frames=300, trigger_supernova_at=150)
+        elif use_kivy:
+            from kivy.app import App
+            from kivy.uix.widget import Widget
+            from kivy.uix.floatlayout import FloatLayout
+            from kivy.clock import Clock
+            from core.kivy_renderer import KivyRenderer
+            
+            odyssey_engine = create_odyssey_engine()
+            
+            class OdysseyKivyApp(App):
+                def build(self):
+                    self.title = "Aetheris Odyssey - Kivy"
+                    self.root_layout = FloatLayout(size=(1200, 900))
+                    self.root_layout.size_hint = (None, None)
+                    self.root_layout.size = (1200, 900)
+                    self.root_layout.pos = (0, 0)
+                    
+                    self.dom_container = FloatLayout(size=(1200, 900))
+                    self.root_layout.add_widget(self.dom_container)
+                    
+                    self.canvas_widget = Widget(size=(1200, 900))
+                    self.root_layout.add_widget(self.canvas_widget)
+                    
+                    self.renderer = KivyRenderer()
+                    self.renderer.init_window(1200, 900, self.title)
+                    self.renderer.set_canvas(self.canvas_widget.canvas)
+                    self.renderer.set_dom_container(self.dom_container)
+                    
+                    self.frame_count = 0
+                    self.supernova_triggered = False
+                    Clock.schedule_interval(self._update, 1.0 / 60.0)
+                    return self.root_layout
+                
+                def _update(self, dt):
+                    from demo.odyssey_master import apply_genre_orbit, trigger_supernova
+                    win_w, win_h = 1200, 900
+                    center_x, center_y = 600, 450
+                    
+                    # Apply genre orbit
+                    apply_genre_orbit(odyssey_engine, 'action', center_x, center_y)
+                    
+                    # Trigger supernova at frame 150
+                    if self.frame_count == 150 and not self.supernova_triggered:
+                        trigger_supernova(odyssey_engine, center_x, center_y)
+                        self.supernova_triggered = True
+                    
+                    data = odyssey_engine.tick(win_w, win_h)
+                    self.renderer.clear_screen((0.05, 0.05, 0.1, 1.0))
+                    self.renderer.render_frame(data, odyssey_engine.get_ui_metadata())
+                    
+                    if self.frame_count % 50 == 0:
+                        print(f"  Odyssey Frame {self.frame_count}")
+                    
+                    self.frame_count += 1
+                    if self.frame_count >= 300:
+                        print("Odyssey Kivy complete!")
+                        self.stop()
+                        return False
+                    return True
+                
+                def on_stop(self):
+                    self.renderer.cleanup_dom_labels()
+            
+            print("Starting Odyssey Kivy app (300 frames)...")
+            OdysseyKivyApp().run()
+        else:
+            renderer = MockRenderer()
+            renderer.init_window(1200, 900, "Aetheris Odyssey - Mock")
+            engine = create_odyssey_engine()
+            run_odyssey(engine, renderer, focused_genre='action', num_frames=300, trigger_supernova_at=150)
+    else:
+        main(use_tkinter=use_tkinter, use_gl=use_gl, use_kivy=use_kivy)
