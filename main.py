@@ -361,31 +361,11 @@ if __name__ == "__main__":
             renderer.init_window(1200, 900, "Aetheris Odyssey - GL")
             engine = create_odyssey_engine()
             
-            # Interactive input callback with keyboard support
-            import glfw
-            from moderngl_window.context.glfw import Window as GLFWWindow
-            
-            running = True
-            focused_genre = 'action'
-            
-            def input_callback(engine, frame):
-                nonlocal running, focused_genre
-                # Check for window close or Escape key
-                if glfw.window_should_close(glfwGetCurrentContext()):
-                    running = False
-                    return False
-                return True
-            
-            def glfwGetCurrentContext():
-                # Get the current GLFW window from ModernGL
-                return None  # Will be set after init
-            
-            # Use a simpler approach: run with a fixed frame count but check for keyboard
-            print("Odyssey GL - Press Escape to exit")
+            print("Odyssey GL - Running 10000 frames (Ctrl+C to exit)")
             print("Space = Supernova | 1-6 = Genre focus")
             print()
             
-            # For now, run with generous frame count (user can Ctrl+C)
+            # Run with generous frame count (user can Ctrl+C)
             run_odyssey(engine, renderer, focused_genre='action',
                        num_frames=10000, interactive=True)
             
@@ -396,6 +376,7 @@ if __name__ == "__main__":
             from kivy.clock import Clock
             from kivy.core.window import Window as KivyWindow
             from core.kivy_renderer import KivyRenderer
+            from demo.odyssey_master import apply_genre_orbit, trigger_supernova
             
             odyssey_engine = create_odyssey_engine()
             
@@ -428,7 +409,6 @@ if __name__ == "__main__":
                     return self.root_layout
                 
                 def _on_key_down(self, window, key, scancode, codepoint, modifiers):
-                    from demo.odyssey_master import trigger_supernova
                     center_x, center_y = 600, 450
                     
                     if codepoint == ' ':
