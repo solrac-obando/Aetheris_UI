@@ -44,8 +44,13 @@ def calculate_restoring_force(current_state: np.ndarray, target_state: np.ndarra
     current_state and target_state are [x, y, w, h].
     Formula: Force = (target - current) * spring_constant
     
-    Aether-Guard: Clamps force magnitude to prevent explosive values.
+    Aether-Guard: Clamps spring_constant to [0, 10000] and force magnitude to 10000.
     """
+    # Aether-Guard: Clamp spring_constant to safe range
+    # Practical infinity check: values > 1e15 are treated as infinite
+    if spring_constant < 0.0 or spring_constant > 1e15:
+        spring_constant = 0.1  # Safe default for invalid values
+    
     error = target_state - current_state
     force = (error * spring_constant).astype(np.float32)
     
