@@ -359,7 +359,7 @@ def _run_kivy():
             legend_lines = []
             for cat, col in CATEGORY_COLORS.items():
                 count = sum(1 for n in orrery.nodes if n.category == cat)
-                legend_lines.append(f"  {'\u25cf'} {cat.capitalize()}: {count}")
+                legend_lines.append(f"  ● {cat.capitalize()}: {count}")
             legend_lines.append(f"  Nodes: {len(orrery.nodes)}  Edges: {len(orrery.edges)}")
             legend_lines.append(f"  Stable: {'Yes' if orrery._stable else 'No'}")
             self._legend.text = "\n".join(legend_lines)

@@ -30,3 +30,14 @@ Thumbs.db
 
 # Release directory (generated, not tracked)
 release_v1/
+
+# ── SHIELDED: Private tests (NEVER leave local environment) ──
+tests/local_torture_test.py
+tests_stress/
+*stress*.py
+*defensive*.py
+*iron_mountain*.py
+*titan*.py
+
+# ── Internal audit reports ──
+AETHERIS_AUDIT.md
