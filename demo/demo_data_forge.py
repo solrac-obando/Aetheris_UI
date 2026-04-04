@@ -298,9 +298,6 @@ def _run_kivy():
             self._tooltip_lbl = Label(text="", pos=(0, 0), color=(0.9, 0.9, 0.9, 1),
                                       font_size=10, halign="left", valign="top",
                                       size=(250, 150))
-            # Separate canvas layer for physics elements so clear() doesn't wipe widgets
-            self._element_canvas = Widget()
-            self.add_widget(self._element_canvas)
             self.add_widget(self._title)
             self.add_widget(self._subtitle)
             self.add_widget(self._status)
@@ -362,9 +359,9 @@ def _run_kivy():
                 forge.handle_teleportation(cw, ch)
             if forge.elements:
                 forge.tick(cw, ch)
-            # Only clear the element canvas, not the widget canvas
-            self._element_canvas.canvas.clear()
-            with self._element_canvas.canvas:
+            # Render on canvas.before so widgets (buttons/labels) stay on top
+            self.canvas.before.clear()
+            with self.canvas.before:
                 # Column headers
                 for ci, col in enumerate(forge.numeric_cols):
                     col_spacing = (cw - 80) / max(len(forge.numeric_cols), 1)
@@ -372,14 +369,14 @@ def _run_kivy():
                     Color(0.25, 0.25, 0.35, 0.7)
                     Rectangle(pos=(cx - 40, TOOLBAR_H + 5), size=(80, 18))
                     Color(0.85, 0.85, 0.9, 1)
-                # Elements
+                # Physics elements
                 for elem in forge.elements:
                     s = elem.tensor.state
                     r, g, b, a = elem._color
                     Color(r, g, b, a)
                     Rectangle(pos=(float(s[0]), float(s[1])),
                               size=(float(s[2]), float(s[3])))
-                # Tooltip
+                # Tooltip background
                 if forge._tooltip:
                     tx, ty = forge._tooltip.get("x", 0), forge._tooltip.get("y", 0)
                     Color(0.05, 0.05, 0.12, 0.95)
