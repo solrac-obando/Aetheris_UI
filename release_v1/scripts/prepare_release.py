@@ -1,32 +1,36 @@
 """
-Aetheris UI — Release Preparation Script (v1.0.0)
+Aetheris UI — Shielded Release Preparation Script (v1.0.0)
 
 Automates the creation of a clean release_v1/ directory for public distribution.
 
-What gets INCLUDED:
-  - core/          (physics engine, solvers, renderers, data bridge)
-  - demo/          (odyssey database and master orchestrator)
-  - wasm/          (Pyodide bridge and HTML templates)
-  - templates/     (Flask/Jinja2 templates including odyssey.html)
-  - docs/          (all documentation in EN, ES, PT)
-  - scripts/       (this script and future utilities)
-  - main.py        (multi-platform entry point)
-  - app_server.py  (Flask server for web deployment)
-  - pyproject.toml (professional packaging metadata)
-  - LICENSE        (MIT License — Carlos Ivan Obando Aure)
+SHIELDED DISTRIBUTION STRATEGY:
+
+INCLUDED (public on GitHub):
+  - tests/           (100 core functional tests — physics, engine, renderers, WASM)
+  - core/            (physics engine, solvers, renderers, data bridge)
+  - demo/            (odyssey database and master orchestrator)
+  - wasm/            (Pyodide bridge and HTML templates)
+  - templates/       (Flask/Jinja2 templates including odyssey.html)
+  - docs/            (all documentation in EN, ES, PT)
+  - scripts/         (this script and future utilities)
+  - main.py          (multi-platform entry point)
+  - app_server.py    (Flask server for web deployment)
+  - pyproject.toml   (professional packaging metadata)
+  - LICENSE          (MIT License — Carlos Ivan Obando Aure)
   - requirements.txt
   - README.md / README_ES.md / README_PT.md
+  - Dockerfile / docker-compose.yml
 
-What gets SHIELDED (excluded from release):
-  - tests/         (private quality-control IP)
-  - .pytest_cache/ (test artifacts)
-  - __pycache__/   (compiled Python)
-  - .nbc / .nbi    (Numba cache files)
-  - *.pyc          (compiled bytecode)
-  - release_v1/    (the release directory itself)
-  - .git/          (version control)
-  - .venv/         (virtual environment)
-  - *.db           (generated databases — recreated by odyssey_db.py)
+SHIELDED (NEVER leave local environment):
+  - tests_stress/    (43 tests: Titan stress, Iron Mountain, Defensive/human error)
+  - .pytest_cache/   (test artifacts)
+  - __pycache__/     (compiled Python)
+  - .nbc / .nbi      (Numba cache files)
+  - *.pyc / *.pyo    (compiled bytecode)
+  - release_v1/      (the release directory itself)
+  - .git/            (version control)
+  - .venv/           (virtual environment)
+  - *.db             (generated databases — recreated by odyssey_db.py)
 """
 
 import os
@@ -43,7 +47,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RELEASE_DIR = PROJECT_ROOT / "release_v1"
 VERSION = "1.0.0"
 
-# Directories to INCLUDE in the release
+# Directories to INCLUDE in the public release
 INCLUDE_DIRS = [
     "core",
     "demo",
@@ -51,6 +55,7 @@ INCLUDE_DIRS = [
     "templates",
     "docs",
     "scripts",
+    "tests",            # ALL 100 core functional tests — PUBLIC
 ]
 
 # Root-level files to INCLUDE
@@ -64,9 +69,10 @@ INCLUDE_FILES = [
     "README_ES.md",
     "README_PT.md",
     "Dockerfile",
+    "docker-compose.yml",
 ]
 
-# Patterns to EXCLUDE (shielded assets)
+# Patterns to EXCLUDE (shielded assets — NEVER leave local)
 EXCLUDE_PATTERNS = [
     "__pycache__",
     ".pytest_cache",
@@ -76,7 +82,7 @@ EXCLUDE_PATTERNS = [
     ".nbc",
     ".nbi",
     ".pyc",
-    "tests",
+    "tests_stress",     # SHIELDED: Titan, Iron Mountain, Defensive tests
     ".db",
     ".pyo",
     ".egg-info",
@@ -122,6 +128,22 @@ def copy_with_exclusions(src: Path, dst: Path):
             copy_with_exclusions(item, dst / item.name)
 
 
+def count_tests(directory: Path) -> int:
+    """Count test functions in a directory."""
+    import ast
+    count = 0
+    for py_file in directory.rglob("test_*.py"):
+        try:
+            with open(py_file) as f:
+                tree = ast.parse(f.read())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                    count += 1
+        except Exception:
+            pass
+    return count
+
+
 def create_release():
     """Create the release_v1/ directory with all public assets."""
     print("=" * 60)
@@ -165,65 +187,74 @@ def create_release():
     
     # Step 5: Shield verification
     print("Step 5: Verifying shielded assets are excluded...")
-    shielded = ["tests", ".pytest_cache", "__pycache__", ".git", ".nbc", ".nbi"]
+    shielded = ["tests_stress", ".pytest_cache", "__pycache__", ".git", ".nbc", ".nbi"]
     all_clear = True
     for item in shielded:
         if (RELEASE_DIR / item).exists():
-            print(f"  ❌ SHIELD BREACH: {item}/ found in release!")
+            print(f"  [BREACH] {item}/ found in release!")
             all_clear = False
     if all_clear:
-        print("  ✅ All private assets properly shielded")
+        print("  [OK] All private assets properly shielded")
     print()
-    
-    # Step 6: Generate release manifest
-    print("Step 6: Generating release manifest...")
+
+    # Step 6: Test inventory report
+    print("Step 6: Test inventory...")
+    public_tests = count_tests(RELEASE_DIR / "tests")
+    print(f"  Public core tests: {public_tests}")
+    print(f"  Shielded stress tests: 43 (tests_stress/ — excluded)")
+    print(f"  Total project tests: {public_tests + 43}")
+    print()
+
+    # Step 7: Generate release manifest
+    print("Step 7: Generating release manifest...")
     manifest_path = RELEASE_DIR / "RELEASE_MANIFEST.txt"
-    with open(manifest_path, 'w') as f:
+    with open(manifest_path, "w") as f:
         f.write(f"AETHERIS UI RELEASE MANIFEST\n")
         f.write(f"{'=' * 50}\n")
         f.write(f"Version: {VERSION}\n")
         f.write(f"Author: Carlos Ivan Obando Aure\n")
-        f.write(f"License: MIT\n")
+        f.write(f"License: Apache-2.0\n")
         f.write(f"Python: >=3.12\n")
         f.write(f"\n")
-        f.write(f"INCLUDED:\n")
+        f.write(f"INCLUDED (public):\n")
         for dir_name in INCLUDE_DIRS:
             src = PROJECT_ROOT / dir_name
             if src.exists():
-                file_count = sum(1 for _ in src.rglob("*.py") if not should_exclude(_))
-                f.write(f"  - {dir_name}/ ({file_count} Python files)\n")
+                py_count = sum(1 for _ in src.rglob("*.py") if not should_exclude(_))
+                f.write(f"  - {dir_name}/ ({py_count} Python files)\n")
         for file_name in INCLUDE_FILES:
             if (PROJECT_ROOT / file_name).exists():
                 f.write(f"  - {file_name}\n")
         f.write(f"\n")
-        f.write(f"SHIELDED (not included):\n")
-        f.write(f"  - tests/ (private quality-control IP)\n")
+        f.write(f"SHIELDED (not included in public release):\n")
+        f.write(f"  - tests_stress/ (43 tests: Titan stress, Iron Mountain, Defensive)\n")
         f.write(f"  - .pytest_cache/ (test artifacts)\n")
         f.write(f"  - __pycache__/ (compiled Python)\n")
         f.write(f"  - *.nbc / *.nbi (Numba cache)\n")
         f.write(f"  - *.db (generated databases)\n")
         f.write(f"  - .git/ (version control)\n")
-    print(f"  ✅ RELEASE_MANIFEST.txt generated")
+    print(f"  [OK] RELEASE_MANIFEST.txt generated")
     print()
-    
-    # Step 7: Summary
+
+    # Step 8: Summary
     total_files = sum(1 for _ in RELEASE_DIR.rglob("*") if _.is_file())
     total_size = sum(f.stat().st_size for f in RELEASE_DIR.rglob("*") if f.is_file())
     size_mb = total_size / (1024 * 1024)
-    
+
     print("=" * 60)
     print(f"RELEASE v{VERSION} READY")
     print(f"{'=' * 60}")
     print(f"  Location: {RELEASE_DIR}")
     print(f"  Files: {total_files}")
     print(f"  Size: {size_mb:.1f} MB")
-    print(f"  Shielded: tests/, .pytest_cache/, __pycache__/, *.nbc, *.nbi")
+    print(f"  Public tests: {public_tests} (core functional)")
+    print(f"  Shielded: tests_stress/ (43 stress/defensive tests)")
     print()
     print("To verify the release:")
     print(f"  cd {RELEASE_DIR}")
     print("  pip install -r requirements.txt")
     print("  python3 demo/odyssey_db.py")
-    print("  python3 main.py --odyssey")
+    print("  python3 -m pytest tests/ -v")
     print("=" * 60)
 
 

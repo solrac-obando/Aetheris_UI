@@ -2,16 +2,17 @@ AETHERIS UI RELEASE MANIFEST
 ==================================================
 Version: 1.0.0
 Author: Carlos Ivan Obando Aure
-License: MIT
+License: Apache-2.0
 Python: >=3.12
 
-INCLUDED:
+INCLUDED (public):
   - core/ (16 Python files)
   - demo/ (2 Python files)
   - wasm/ (0 Python files)
   - templates/ (0 Python files)
   - docs/ (0 Python files)
   - scripts/ (1 Python files)
+  - tests/ (11 Python files)
   - main.py
   - app_server.py
   - pyproject.toml
@@ -21,9 +22,10 @@ INCLUDED:
   - README_ES.md
   - README_PT.md
   - Dockerfile
+  - docker-compose.yml
 
-SHIELDED (not included):
-  - tests/ (private quality-control IP)
+SHIELDED (not included in public release):
+  - tests_stress/ (43 tests: Titan stress, Iron Mountain, Defensive)
   - .pytest_cache/ (test artifacts)
   - __pycache__/ (compiled Python)
   - *.nbc / *.nbi (Numba cache)

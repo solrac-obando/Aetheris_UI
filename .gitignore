@@ -1,0 +1,32 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Numba cache files
+*.nbc
+*.nbi
+
+# Virtual environments
+.venv/
+venv/
+
+# Generated databases
+*.db
+
+# Pytest cache
+.pytest_cache/
+
+# Egg info
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Release directory (generated, not tracked)
+release_v1/

@@ -1,15 +1,40 @@
 services:
-  aetheris:
-    build: .
+  # -----------------------------------------------------------------------
+  # Headless mode: CI/CD, servers, automated testing
+  # -----------------------------------------------------------------------
+  aetheris-headless:
+    build:
+      context: .
+      args:
+        RUN_MODE: headless
     tty: true
     stdin_open: true
     working_dir: /app
-    entrypoint: bash
+    volumes:
+      - ./:/app
+    environment:
+      - RUN_MODE=headless
+      - MGL_WINDOW_BACKEND=headless
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+
+  # -----------------------------------------------------------------------
+  # Interactive mode: local dev with GUI (X11 forwarding)
+  # -----------------------------------------------------------------------
+  aetheris-interactive:
+    build:
+      context: .
+      args:
+        RUN_MODE: interactive
+    tty: true
+    stdin_open: true
+    working_dir: /app
     volumes:
       - ./:/app
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /dev/dri:/dev/dri
     environment:
+      - RUN_MODE=interactive
       - DISPLAY=${DISPLAY}
     devices:
       - /dev/dri:/dev/dri
