@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="description" content="Aether-Web — Physics-driven particle sandbox powered by Python WASM">
+    <title>AETHER-WEB — Particle Sandbox</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%236366f1' stroke-width='4'/><circle cx='50' cy='50' r='8' fill='%23818cf8'/></svg>">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0b0f19;
+            --surface: rgba(15, 23, 42, 0.85);
+            --border: rgba(99, 102, 241, 0.2);
+            --glow: rgba(129, 140, 248, 0.15);
+            --text: #c7d2fe;
+            --text-dim: #6366f1;
+            --accent: #818cf8;
+            --accent-bright: #a5b4fc;
+        }
+
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+        }
+
+        canvas {
+            display: block;
+            width: 100%; height: 100%;
+            cursor: crosshair;
+        }
+
+        /* ── HUD Overlay ─────────────────────────────────── */
+        #hud {
+            position: fixed; top: 0; left: 0; right: 0;
+            padding: 20px 24px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #hud > * { pointer-events: auto; }
+
+        .hud-title {
+            font-size: 18px; font-weight: 700;
+            letter-spacing: 0.15em; text-transform: uppercase;
+            color: var(--accent-bright);
+            text-shadow: 0 0 20px var(--glow), 0 0 40px rgba(129, 140, 248, 0.08);
+        }
+
+        .hud-subtitle {
+            font-size: 11px; color: var(--text-dim);
+            margin-top: 4px; letter-spacing: 0.08em;
+        }
+
+        .hud-stats {
+            text-align: right;
+            font-size: 11px; color: var(--text-dim);
+            line-height: 1.8;
+        }
+
+        .hud-stats span {
+            color: var(--accent);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ── Loading Screen ──────────────────────────────── */
+        #loader {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: var(--bg);
+            z-index: 100;
+            transition: opacity 0.8s ease, visibility 0.8s ease;
+        }
+
+        #loader.hidden {
+            opacity: 0; visibility: hidden;
+        }
+
+        .loader-ring {
+            width: 60px; height: 60px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loader-text {
+            margin-top: 20px; font-size: 13px;
+            color: var(--text-dim); letter-spacing: 0.1em;
+        }
+
+        /* ── Glass Panel (bottom) ────────────────────────── */
+        #controls {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 10px;
+            padding: 10px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 1px var(--border);
+            z-index: 10;
+        }
+
+        .ctrl-btn {
+            padding: 8px 18px;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 12px; font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 0.04em;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: var(--accent);
+            box-shadow: 0 0 12px var(--glow);
+        }
+
+        .ctrl-btn:active {
+            transform: scale(0.96);
+        }
+
+        .ctrl-btn.active {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: var(--accent);
+            color: var(--accent-bright);
+        }
+
+        /* ── Install Banner ──────────────────────────────── */
+        #install-banner {
+            display: none;
+            position: fixed; bottom: 80px; left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            z-index: 20;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        #install-banner button {
+            margin-left: 12px;
+            padding: 6px 14px;
+            background: var(--accent);
+            border: none; border-radius: 6px;
+            color: #0b0f19; font-weight: 600;
+            cursor: pointer; font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="loader-ring"></div>
+        <div class="loader-text">Loading Python WASM Runtime…</div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud">
+        <div>
+            <div class="hud-title">Aether-Web</div>
+            <div class="hud-subtitle">Particle Sandbox — Move cursor to attract</div>
+        </div>
+        <div class="hud-stats">
+            Particles: <span id="stat-nodes">0</span><br>
+            FPS: <span id="stat-fps">0</span><br>
+            Engine: <span id="stat-engine">loading…</span>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+        <button class="ctrl-btn active" id="btn-attract" onclick="setMode('attract')">Attract</button>
+        <button class="ctrl-btn" id="btn-repel" onclick="setMode('repel')">Repel</button>
+        <button class="ctrl-btn" id="btn-vortex" onclick="setMode('vortex')">Vortex</button>
+        <button class="ctrl-btn" id="btn-reset" onclick="resetParticles()">Reset</button>
+    </div>
+
+    <!-- Install Banner -->
+    <div id="install-banner">
+        Install Aether-Web as an app
+        <button onclick="installPWA()">Install</button>
+    </div>
+
+    <!-- Canvas -->
+    <canvas id="canvas"></canvas>
+
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+
+    <script>
+    // ── State ────────────────────────────────────────────────
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let pyodide = null;
+    let pyModule = null;
+    let mouse = { x: -9999, y: -9999, active: false };
+    let mode = 'attract';
+    let nodeCount = 50;
+    let fpsFrames = 0, fpsTime = performance.now(), currentFps = 0;
+    let deferredPrompt = null;
+
+    // ── Resize ───────────────────────────────────────────────
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = window.innerWidth * dpr;
+        canvas.height = window.innerHeight * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ── Input ────────────────────────────────────────────────
+    canvas.addEventListener('mousemove', e => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.active = true;
+    });
+    canvas.addEventListener('mouseleave', () => { mouse.active = false; });
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        mouse.x = e.touches[0].clientX;
+        mouse.y = e.touches[0].clientY;
+        mouse.active = true;
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => { mouse.active = false; });
+
+    // ── Controls ─────────────────────────────────────────────
+    function setMode(m) {
+        mode = m;
+        document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + m)?.classList.add('active');
+    }
+    window.setMode = setMode;
+
+    function resetParticles() {
+        if (pyModule) pyModule.reset();
+    }
+    window.resetParticles = resetParticles;
+
+    // ── PWA Install ──────────────────────────────────────────
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        deferredPrompt = e;
+        document.getElementById('install-banner').style.display = 'block';
+    });
+    window.installPWA = () => {
+        if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; }
+    };
+
+    // ── Draw ─────────────────────────────────────────────────
+    function drawGrid() {
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.04)';
+        ctx.lineWidth = 0.5;
+        const step = 60;
+        const w = window.innerWidth, h = window.innerHeight;
+        for (let x = 0; x < w; x += step) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = 0; y < h; y += step) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+    }
+
+    function drawCursorGlow() {
+        if (!mouse.active) return;
+        const r = 120;
+        const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, r);
+        const color = mode === 'repel' ? '239, 68, 68' : mode === 'vortex' ? '168, 85, 247' : '99, 102, 241';
+        grad.addColorStop(0, `rgba(${color}, 0.15)`);
+        grad.addColorStop(0.5, `rgba(${color}, 0.05)`);
+        grad.addColorStop(1, `rgba(${color}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(mouse.x, mouse.y, r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawNodes(positions) {
+        const n = positions.length / 4;
+        for (let i = 0; i < n; i++) {
+            const x = positions[i * 4];
+            const y = positions[i * 4 + 1];
+            const vx = positions[i * 4 + 2];
+            const vy = positions[i * 4 + 3];
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            const radius = 4 + Math.min(speed * 0.3, 6);
+            const alpha = 0.5 + Math.min(speed * 0.02, 0.5);
+
+            // Glow
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, radius * 3);
+            grad.addColorStop(0, `rgba(129, 140, 248, ${alpha * 0.3})`);
+            grad.addColorStop(1, 'rgba(129, 140, 248, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Core
+            ctx.fillStyle = `rgba(165, 180, 252, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Bright center
+            ctx.fillStyle = `rgba(224, 231, 255, ${alpha * 0.8})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // ── Main Loop ────────────────────────────────────────────
+    function frame() {
+        const w = window.innerWidth, h = window.innerHeight;
+        ctx.clearRect(0, 0, w, h);
+        drawGrid();
+        drawCursorGlow();
+
+        let positions = new Float32Array(0);
+
+        if (pyModule) {
+            const mx = mouse.active ? mouse.x : -9999;
+            const my = mouse.active ? mouse.y : -9999;
+            positions = pyModule.tick(mx, my, mode);
+        }
+
+        drawNodes(positions);
+
+        // FPS counter
+        fpsFrames++;
+        const now = performance.now();
+        if (now - fpsTime >= 500) {
+            currentFps = Math.round(fpsFrames / ((now - fpsTime) / 1000));
+            fpsFrames = 0;
+            fpsTime = now;
+            document.getElementById('stat-fps').textContent = currentFps;
+            document.getElementById('stat-nodes').textContent = positions.length / 4;
+        }
+
+        requestAnimationFrame(frame);
+    }
+
+    // ── Init Pyodide ─────────────────────────────────────────
+    async function init() {
+        try {
+            pyodide = await loadPyodide();
+            document.getElementById('stat-engine').textContent = 'Pyodide ✓';
+
+            // Fetch and run Python module
+            const resp = await fetch('aether_wasm.py');
+            const pyCode = await resp.text();
+            await pyodide.runPythonAsync(pyCode);
+
+            pyModule = pyodide.globals.get('AetherWASM');
+            document.getElementById('stat-engine').textContent = 'AetherEngine ✓';
+
+            // Hide loader
+            document.getElementById('loader').classList.add('hidden');
+            setTimeout(() => document.getElementById('loader').remove(), 1000);
+        } catch (err) {
+            console.error('WASM init failed:', err);
+            document.getElementById('stat-engine').textContent = 'WASM error';
+            document.querySelector('.loader-text').textContent = 'Failed to load — check console';
+        }
+    }
+
+    init();
+    requestAnimationFrame(frame);
+
+    // ── Service Worker (PWA) ─────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+    </script>
+</body>
+</html>
