@@ -303,7 +303,9 @@ class AetherEngine:
             data[i]['z'] = r_data['z']
 
         # HPC throttle: sleep if tick finished early to maintain 60-70% CPU
-        _hpc_throttle(tick_start, time.perf_counter())
+        # Only activate for heavy workloads (50+ elements) to avoid overhead on small demos
+        if n_elements >= 50:
+            _hpc_throttle(tick_start, time.perf_counter())
 
         return data
     
