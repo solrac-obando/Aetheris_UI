@@ -272,13 +272,13 @@ def _run_kivy():
     from kivy.uix.widget import Widget
     from kivy.uix.label import Label
     from kivy.uix.button import Button
-    from kivy.uix.floatlayout import FloatLayout
-    from kivy.graphics import Color, Rectangle, Line
+    from kivy.uix.behaviors import ButtonBehavior
+    from kivy.graphics import Color, RoundedRectangle, Line
     from kivy.core.window import Window
     from kivy.clock import Clock
 
     Window.size = (int(WIN_W), int(WIN_H))
-    Window.clearcolor = (0.02, 0.02, 0.04, 1.0)
+    Window.clearcolor = (0.04, 0.05, 0.08, 1.0)
 
     forge = DataForgeEngine()
     lang_code = "en"
@@ -286,34 +286,86 @@ def _run_kivy():
     def _(key):
         return LANG[lang_code].get(key, key)
 
+    # ── Custom styled button ──────────────────────────────────────────────
+    class NeonButton(ButtonBehavior, Widget):
+        """Sleek dark button with rounded corners and glow border."""
+        def __init__(self, text="", **kw):
+            super().__init__(**kw)
+            self._label = Label(text=text, color=(0.85, 0.85, 0.9, 1), font_size=12)
+            self.add_widget(self._label)
+            self._pressed = False
+            self.bind(size=self._redraw, pos=self._redraw)
+            self._redraw()
+
+        def _redraw(self, *args):
+            self.canvas.clear()
+            bg = (0.12, 0.13, 0.18, 0.9) if not self._pressed else (0.18, 0.2, 0.28, 0.95)
+            border = (0.25, 0.35, 0.6, 0.6) if self._pressed else (0.15, 0.15, 0.2, 0.3)
+            with self.canvas:
+                # Glow
+                Color(*border[:3], 0.12)
+                RoundedRectangle(pos=(self.x - 3, self.y - 3),
+                                 size=(self.width + 6, self.height + 6),
+                                 radius=[8, 8, 8, 8])
+                # Background
+                Color(*bg)
+                RoundedRectangle(pos=self.pos, size=self.size, radius=[6, 6, 6, 6])
+                # Border
+                Color(*border)
+                Line(rounded_rectangle=(self.x, self.y, self.width, self.height, 6, 6, 6, 6), width=1.2)
+            self._label.pos = (self.x, self.y + (self.height - self._label.texture_size[1]) / 2)
+            self._label.size = self._label.texture_size
+            self._label.center_x = self.center_x
+
+        def on_touch_down(self, touch):
+            if self.collide_point(*touch.pos):
+                self._pressed = True
+                self._redraw()
+                touch.grab(self)
+                return True
+            return super().on_touch_down(touch)
+
+        def on_touch_up(self, touch):
+            if touch.grab_current is self:
+                self._pressed = False
+                self._redraw()
+                self.dispatch('on_release')
+                touch.ungrab(self)
+                return True
+            return super().on_touch_up(touch)
+
     class ForgeWidget(Widget):
         def __init__(self, **kw):
             super().__init__(**kw)
-            self._title = Label(text=_("title"), pos=(20, WIN_H - 30),
-                                color=(0.6, 0.6, 0.7, 1), font_size=18)
-            self._subtitle = Label(text=_("subtitle"), pos=(20, WIN_H - 55),
-                                   color=(0.4, 0.4, 0.5, 1), font_size=12)
-            self._status = Label(text=_("no_data"), pos=(20, 10),
-                                 color=(0.5, 0.5, 0.6, 1), font_size=11)
-            self._tooltip_lbl = Label(text="", pos=(0, 0), color=(0.9, 0.9, 0.9, 1),
+            self._title = Label(text=_("title"), pos=(20, WIN_H - 28),
+                                color=(0.55, 0.6, 0.75, 1), font_size=17,
+                                font_name="RobotoMono" if "RobotoMono" else "")
+            self._subtitle = Label(text=_("subtitle"), pos=(22, WIN_H - 52),
+                                   color=(0.3, 0.32, 0.4, 1), font_size=11)
+            self._status = Label(text=_("no_data"), pos=(20, 8),
+                                 color=(0.35, 0.38, 0.45, 1), font_size=10)
+            self._tooltip_lbl = Label(text="", pos=(0, 0), color=(0.85, 0.88, 0.95, 1),
                                       font_size=10, halign="left", valign="top",
-                                      size=(250, 150))
+                                      size=(260, 160))
+            self._col_labels = []
             self.add_widget(self._title)
             self.add_widget(self._subtitle)
             self.add_widget(self._status)
             self.add_widget(self._tooltip_lbl)
-            self._btn_open = Button(text=_("open"), pos=(WIN_W - 280, WIN_H - 45),
-                                     size=(100, 30), font_size=12)
-            self._btn_open.bind(on_press=self._do_open)
-            self._btn_sort = Button(text=_("sort"), pos=(WIN_W - 170, WIN_H - 45),
-                                     size=(100, 30), font_size=12)
-            self._btn_sort.bind(on_press=self._do_sort)
-            self._btn_reset = Button(text=_("reset"), pos=(WIN_W - 170, WIN_H - 80),
-                                      size=(100, 30), font_size=12)
-            self._btn_reset.bind(on_press=self._do_reset)
-            self._btn_lang = Button(text=_("lang"), pos=(WIN_W - 60, WIN_H - 45),
-                                     size=(50, 30), font_size=11)
-            self._btn_lang.bind(on_press=self._do_lang)
+
+            # Custom buttons
+            self._btn_open = NeonButton(text=_("open"), pos=(WIN_W - 290, WIN_H - 44),
+                                         size=(100, 30))
+            self._btn_open.bind(on_release=self._do_open)
+            self._btn_sort = NeonButton(text=_("sort"), pos=(WIN_W - 180, WIN_H - 44),
+                                         size=(100, 30))
+            self._btn_sort.bind(on_release=self._do_sort)
+            self._btn_reset = NeonButton(text=_("reset"), pos=(WIN_W - 180, WIN_H - 80),
+                                          size=(100, 30))
+            self._btn_reset.bind(on_release=self._do_reset)
+            self._btn_lang = NeonButton(text=_("lang"), pos=(WIN_W - 70, WIN_H - 44),
+                                         size=(55, 30))
+            self._btn_lang.bind(on_release=self._do_lang)
             for btn in [self._btn_open, self._btn_sort, self._btn_reset, self._btn_lang]:
                 self.add_widget(btn)
             Clock.schedule_interval(self._tick, 1.0 / 60.0)
@@ -331,27 +383,52 @@ def _run_kivy():
                     n_rows = min(len(forge.df), MAX_ROWS)
                     n_cols = len(forge.numeric_cols)
                     self._status.text = f"{n_rows} {_('rows')} × {n_cols} {_('cols')} — {len(forge.elements)} nodes"
+                    self._build_col_labels()
                 else:
                     self._status.text = _("error_invalid")
 
+        def _build_col_labels(self):
+            for lbl in self._col_labels:
+                self.remove_widget(lbl)
+            self._col_labels.clear()
+            cw = self.width or WIN_W
+            n_cols = len(forge.numeric_cols)
+            if n_cols == 0:
+                return
+            col_spacing = (cw - 80) / n_cols
+            for ci, col in enumerate(forge.numeric_cols):
+                cx = 40 + ci * col_spacing + col_spacing / 2
+                lbl = Label(text=col, pos=(cx - 35, TOOLBAR_H + 8),
+                            color=(0.45, 0.48, 0.58, 1), font_size=9,
+                            halign="center", size=(70, 16))
+                self.add_widget(lbl)
+                self._col_labels.append(lbl)
+
         def _do_sort(self, *args):
             forge._sort_mode = not forge._sort_mode
-            self._btn_sort.text = _("reset") if forge._sort_mode else _("sort")
+            self._btn_sort._label.text = _("reset") if forge._sort_mode else _("sort")
+            self._btn_sort._redraw()
 
         def _do_reset(self, *args):
             forge._sort_mode = False
             forge.spawn_elements()
-            self._btn_sort.text = _("sort")
+            self._btn_sort._label.text = _("sort")
+            self._btn_sort._redraw()
+            self._build_col_labels()
 
         def _do_lang(self, *args):
             nonlocal lang_code
             lang_code = "es" if lang_code == "en" else "en"
             self._title.text = _("title")
             self._subtitle.text = _("subtitle")
-            self._btn_open.text = _("open")
-            self._btn_sort.text = _("sort")
-            self._btn_reset.text = _("reset")
-            self._btn_lang.text = _("lang")
+            self._btn_open._label.text = _("open")
+            self._btn_open._redraw()
+            self._btn_sort._label.text = _("sort") if not forge._sort_mode else _("reset")
+            self._btn_sort._redraw()
+            self._btn_reset._label.text = _("reset")
+            self._btn_reset._redraw()
+            self._btn_lang._label.text = _("lang")
+            self._btn_lang._redraw()
 
         def _tick(self, dt):
             cw, ch = self.width or WIN_W, self.height or WIN_H
@@ -359,33 +436,43 @@ def _run_kivy():
                 forge.handle_teleportation(cw, ch)
             if forge.elements:
                 forge.tick(cw, ch)
-            # Render on canvas.before so widgets (buttons/labels) stay on top
             self.canvas.before.clear()
             with self.canvas.before:
-                # Column headers
-                for ci, col in enumerate(forge.numeric_cols):
-                    col_spacing = (cw - 80) / max(len(forge.numeric_cols), 1)
+                n_cols = len(forge.numeric_cols)
+                if n_cols > 0:
+                    col_spacing = (cw - 80) / n_cols
+                # Gravity lanes
+                for ci in range(n_cols):
                     cx = 40 + ci * col_spacing + col_spacing / 2
-                    Color(0.25, 0.25, 0.35, 0.7)
-                    Rectangle(pos=(cx - 40, TOOLBAR_H + 5), size=(80, 18))
-                    Color(0.85, 0.85, 0.9, 1)
-                # Physics elements
+                    Color(1, 1, 1, 0.04)
+                    Line(points=[cx, TOOLBAR_H + 25, cx, ch - 10], width=1)
+                # Elements with glow
                 for elem in forge.elements:
                     s = elem.tensor.state
+                    x, y, w, h = float(s[0]), float(s[1]), float(s[2]), float(s[3])
                     r, g, b, a = elem._color
+                    # Glow layer
+                    Color(r, g, b, 0.12)
+                    RoundedRectangle(pos=(x - 4, y - 4), size=(w + 8, h + 8),
+                                     radius=[6, 6, 6, 6])
+                    # Main element
                     Color(r, g, b, a)
-                    Rectangle(pos=(float(s[0]), float(s[1])),
-                              size=(float(s[2]), float(s[3])))
-                # Tooltip background
+                    RoundedRectangle(pos=(x, y), size=(w, h), radius=[6, 6, 6, 6])
+                    # Subtle inner highlight
+                    Color(1, 1, 1, 0.08)
+                    RoundedRectangle(pos=(x + 1, y + 1), size=(w - 2, h * 0.4),
+                                     radius=[5, 5, 1, 1])
+                # Tooltip
                 if forge._tooltip:
                     tx, ty = forge._tooltip.get("x", 0), forge._tooltip.get("y", 0)
-                    Color(0.05, 0.05, 0.12, 0.95)
-                    Rectangle(pos=(tx + 10, ty + 10), size=(260, 120))
-                    Color(0.3, 0.5, 0.8, 1)
-                    Line(rectangle=(tx + 10, ty + 10, 260, 120), width=1)
+                    Color(0.04, 0.05, 0.1, 0.95)
+                    RoundedRectangle(pos=(tx + 12, ty + 12), size=(265, 125),
+                                     radius=[6, 6, 6, 6])
+                    Color(0.2, 0.35, 0.6, 0.5)
+                    Line(rounded_rectangle=(tx + 12, ty + 12, 265, 125, 6, 6, 6, 6), width=1)
             self._status.text = (
-                f"{len(forge.elements)} nodes | "
-                f"{'● ' + _('stable') if forge._stable else '○ ' + _('processing')} | "
+                f"{len(forge.elements)} nodes  •  "
+                f"{'● ' + _('stable') if forge._stable else '○ ' + _('processing')}  •  "
                 f"Sort: {'ON' if forge._sort_mode else 'OFF'}"
             )
 
@@ -401,7 +488,7 @@ def _run_kivy():
                     for k, v in list(tip["details"].items())[:3]:
                         lines.append(f"  {k}: {v}")
                 self._tooltip_lbl.text = "\n".join(lines)
-                self._tooltip_lbl.pos = (touch.x + 15, touch.y + 15)
+                self._tooltip_lbl.pos = (touch.x + 18, touch.y + 18)
             else:
                 forge._tooltip = None
                 self._tooltip_lbl.text = ""
@@ -410,13 +497,13 @@ def _run_kivy():
     class ForgeApp(App):
         def build(self):
             w = ForgeWidget(size=Window.size)
-            # Auto-load sample data on startup
             sample = Path(__file__).parent / "sample_data.csv"
             if sample.exists() and forge.load_file(str(sample)):
                 forge.spawn_elements()
                 n_rows = min(len(forge.df), MAX_ROWS)
                 n_cols = len(forge.numeric_cols)
                 w._status.text = f"{n_rows} {_('rows')} × {n_cols} {_('cols')} — {len(forge.elements)} nodes"
+                Clock.schedule_once(lambda dt: w._build_col_labels(), 0.1)
             return w
 
     ForgeApp().run()
