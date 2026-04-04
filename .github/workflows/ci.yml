@@ -34,21 +34,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb \
-            libgl1-mesa-glx \
-            libgl1 \
-            libegl1 \
-            libgles2 \
-            libmtdev1 \
-            libmtdev-dev \
-            mtdev-tools \
-            libgstreamer1.0-0 \
-            gstreamer1.0-plugins-base \
-            libfreetype6 \
-            libharfbuzz0b \
-            pkg-config \
-            build-essential
+          sudo apt-get install -y xvfb libgl1 libgl1-mesa-dev libegl1 libegl1-mesa-dev libgles2 libgles2-mesa-dev libmtdev1 libgstreamer1.0-0 gstreamer1.0-plugins-base libfreetype6 libharfbuzz0b pkg-config build-essential
 
       # ── 4. Python Dependencies ───────────────────────────────────────────
       - name: Install Python dependencies
