@@ -298,7 +298,9 @@ def _run_kivy():
             self._tooltip_lbl = Label(text="", pos=(0, 0), color=(0.9, 0.9, 0.9, 1),
                                       font_size=10, halign="left", valign="top",
                                       size=(250, 150))
-            self._tooltip_bg = None
+            # Separate canvas layer for physics elements so clear() doesn't wipe widgets
+            self._element_canvas = Widget()
+            self.add_widget(self._element_canvas)
             self.add_widget(self._title)
             self.add_widget(self._subtitle)
             self.add_widget(self._status)
@@ -331,7 +333,7 @@ def _run_kivy():
                     forge.spawn_elements()
                     n_rows = min(len(forge.df), MAX_ROWS)
                     n_cols = len(forge.numeric_cols)
-                    self._status.text = f"{n_rows} {_('rows')} × {n_cols} {_('cols')} — {forge.elements.__len__()} nodes"
+                    self._status.text = f"{n_rows} {_('rows')} × {n_cols} {_('cols')} — {len(forge.elements)} nodes"
                 else:
                     self._status.text = _("error_invalid")
 
@@ -360,15 +362,16 @@ def _run_kivy():
                 forge.handle_teleportation(cw, ch)
             if forge.elements:
                 forge.tick(cw, ch)
-            self.canvas.clear()
-            with self.canvas:
+            # Only clear the element canvas, not the widget canvas
+            self._element_canvas.canvas.clear()
+            with self._element_canvas.canvas:
                 # Column headers
                 for ci, col in enumerate(forge.numeric_cols):
                     col_spacing = (cw - 80) / max(len(forge.numeric_cols), 1)
                     cx = 40 + ci * col_spacing + col_spacing / 2
-                    Color(0.3, 0.3, 0.4, 0.6)
+                    Color(0.25, 0.25, 0.35, 0.7)
                     Rectangle(pos=(cx - 40, TOOLBAR_H + 5), size=(80, 18))
-                    Color(0.9, 0.9, 0.9, 1)
+                    Color(0.85, 0.85, 0.9, 1)
                 # Elements
                 for elem in forge.elements:
                     s = elem.tensor.state
@@ -379,7 +382,7 @@ def _run_kivy():
                 # Tooltip
                 if forge._tooltip:
                     tx, ty = forge._tooltip.get("x", 0), forge._tooltip.get("y", 0)
-                    Color(0.05, 0.05, 0.1, 0.92)
+                    Color(0.05, 0.05, 0.12, 0.95)
                     Rectangle(pos=(tx + 10, ty + 10), size=(260, 120))
                     Color(0.3, 0.5, 0.8, 1)
                     Line(rectangle=(tx + 10, ty + 10, 260, 120), width=1)
@@ -409,7 +412,15 @@ def _run_kivy():
 
     class ForgeApp(App):
         def build(self):
-            return ForgeWidget(size=Window.size)
+            w = ForgeWidget(size=Window.size)
+            # Auto-load sample data on startup
+            sample = Path(__file__).parent / "sample_data.csv"
+            if sample.exists() and forge.load_file(str(sample)):
+                forge.spawn_elements()
+                n_rows = min(len(forge.df), MAX_ROWS)
+                n_cols = len(forge.numeric_cols)
+                w._status.text = f"{n_rows} {_('rows')} × {n_cols} {_('cols')} — {len(forge.elements)} nodes"
+            return w
 
     ForgeApp().run()
 

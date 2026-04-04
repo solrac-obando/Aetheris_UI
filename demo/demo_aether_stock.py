@@ -264,15 +264,29 @@ class AetherStockEngine:
 # ============================================================================
 
 def _run_interactive() -> None:
-    """Launch the demo with a ModernGL window for interactive use."""
+    """Launch the demo with a Kivy window for interactive use."""
     try:
         import moderngl
         import moderngl_window
         from moderngl_window.context.base import BaseWindow
     except ImportError:
-        print("[Aether-Stock] ModernGL not available — running headless demo.")
-        _run_headless_demo()
+        moderngl = None
+
+    if moderngl is not None:
+        _run_moderngl_window()
         return
+
+    try:
+        _run_kivy_window()
+    except ImportError:
+        print("[Aether-Stock] Kivy not available — running headless demo.")
+        _run_headless_demo()
+
+
+def _run_moderngl_window() -> None:
+    """Launch with ModernGL renderer."""
+    import moderngl_window
+    from moderngl_window.context.base import BaseWindow
 
     class StockWindow(moderngl_window.WindowConfig):
         gl_version = (3, 3)
@@ -368,6 +382,101 @@ def _run_interactive() -> None:
             self.stock.pointer_up()
 
     moderngl_window.run_window_config(StockWindow)
+
+
+def _run_kivy_window() -> None:
+    """Launch with Kivy renderer — physics-driven stock chart."""
+    import os
+    os.environ["KIVY_WINDOW"] = "sdl2"
+    os.environ["KIVY_LOG_LEVEL"] = "warning"
+
+    from kivy.app import App
+    from kivy.uix.widget import Widget
+    from kivy.uix.label import Label
+    from kivy.uix.floatlayout import FloatLayout
+    from kivy.graphics import Color, Rectangle
+    from kivy.clock import Clock
+    from kivy.core.window import Window
+
+    Window.size = (WIN_WIDTH, WIN_HEIGHT)
+    Window.title = "Aether-Stock — Physics-Driven Market Dashboard"
+    Window.clearcolor = (0.04, 0.04, 0.06, 1.0)
+
+    class StockChart(Widget):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.stock = AetherStockEngine()
+            self._price_label = Label(
+                text="",
+                pos=(CHART_LEFT, CHART_BOTTOM + 10),
+                size=(400, 30),
+                color=(0.7, 0.7, 0.7, 1),
+                font_size=14,
+                halign="left",
+            )
+            self.add_widget(self._price_label)
+            Clock.schedule_interval(self._update, 1.0 / 60.0)
+
+        def _update(self, dt):
+            self.stock.tick()
+
+            # Update prices every ~2 seconds
+            if int(Clock.get_time()) % 2 == 0:
+                self.stock.simulate_market_tick()
+
+            self.canvas.clear()
+            with self.canvas:
+                # Draw bars
+                for elem in self.stock.elements:
+                    if not isinstance(elem, StockElement):
+                        continue
+                    s = elem.tensor.state
+                    x, y, w, h = float(s[0]), float(s[1]), float(s[2]), float(s[3])
+                    r, g, b, a = elem._color
+                    Color(r, g, b, a)
+                    Rectangle(pos=(x, y), size=(w, max(h, 2.0)))
+
+                # Draw chart border
+                Color(0.3, 0.3, 0.4, 0.5)
+                Rectangle(pos=(CHART_LEFT - 2, CHART_TOP - 2),
+                          size=(CHART_RIGHT - CHART_LEFT + 4, CHART_BOTTOM - CHART_TOP + 4))
+
+            # Update price label
+            prices = [float(e._price) for e in self.stock.elements if isinstance(e, StockElement)]
+            if prices:
+                self._price_label.text = (
+                    f"MIN: ${min(prices):.2f}  |  "
+                    f"MAX: ${max(prices):.2f}  |  "
+                    f"BARS: {len(prices)}  |  "
+                    f"FPS: {1.0 / dt:.0f}"
+                )
+
+        def on_touch_down(self, touch):
+            idx = self.stock.pointer_down(touch.x, touch.y)
+            if idx >= 0:
+                touch.grab(self)
+                return True
+            return super().on_touch_down(touch)
+
+        def on_touch_move(self, touch):
+            if touch.grab_current is self:
+                self.stock.pointer_move(touch.x, touch.y)
+                return True
+            return super().on_touch_move(touch)
+
+        def on_touch_up(self, touch):
+            if touch.grab_current is self:
+                self.stock.pointer_up()
+                return True
+            return super().on_touch_up(touch)
+
+    class StockApp(App):
+        def build(self):
+            layout = FloatLayout(size=Window.size)
+            layout.add_widget(StockChart(size=Window.size))
+            return layout
+
+    StockApp().run()
 
 
 def _run_headless_demo() -> None:
