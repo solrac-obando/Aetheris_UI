@@ -287,15 +287,16 @@ def _run_kivy():
         return LANG[lang_code].get(key, key)
 
     # ── Custom styled button ──────────────────────────────────────────────
-    class NeonButton(ButtonBehavior, Widget):
+    class NeonButton(ButtonBehavior, Label):
         """Sleek dark button with rounded corners and glow border."""
         def __init__(self, text="", **kw):
-            super().__init__(**kw)
-            self._btn_text = text
-            self._label = Label(text=text, color=(0.92, 0.93, 0.97, 1), font_size=12)
-            self.add_widget(self._label)
+            kw['color'] = (0.92, 0.93, 0.97, 1)
+            kw['font_size'] = kw.get('font_size', 12)
+            kw['halign'] = 'center'
+            kw['valign'] = 'middle'
+            super().__init__(text=text, **kw)
             self._pressed = False
-            self.bind(size=self._redraw, pos=self._redraw)
+            self.bind(size=self._redraw, pos=self._redraw, texture_size=self._redraw)
             self._redraw()
 
         def _redraw(self, *args):
@@ -314,11 +315,6 @@ def _run_kivy():
                 # Border
                 Color(*border)
                 Line(rounded_rectangle=(self.x, self.y, self.width, self.height, 6, 6, 6, 6), width=1.2)
-            # Position label on top
-            tw, th = self._label.texture_size
-            self._label.size = (tw, th)
-            self._label.center_x = self.center_x
-            self._label.center_y = self.center_y
 
         def on_touch_down(self, touch):
             if self.collide_point(*touch.pos):
