@@ -1,0 +1,77 @@
+# =============================================================================
+# Aetheris UI — Continuous Integration Pipeline
+# Automated headless testing on every push and pull request
+# =============================================================================
+
+name: Aetheris CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python Setup ──────────────────────────────────────────────────
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # ── 3. System Dependencies (Headless Kivy/OpenGL) ────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            libgl1-mesa-glx \
+            libgl1 \
+            libegl1 \
+            libgles2 \
+            libmtdev1 \
+            libmtdev-dev \
+            mtdev-tools \
+            libgstreamer1.0-0 \
+            gstreamer1.0-plugins-base \
+            libfreetype6 \
+            libharfbuzz0b \
+            pkg-config \
+            build-essential
+
+      # ── 4. Python Dependencies ───────────────────────────────────────────
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install psutil pandas openpyxl
+
+      # ── 5. Generate test database ────────────────────────────────────────
+      - name: Generate Odyssey test database
+        run: |
+          python demo/odyssey_db.py
+
+      # ── 6. Run Test Suite (Headless via Xvfb) ───────────────────────────
+      - name: Run headless test suite
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            pytest tests/ -v --tb=short \
+            --ignore=tests/local_torture_test.py \
+            -p no:warnings
+
+      # ── 7. Performance Gatekeeper ────────────────────────────────────────
+      - name: Run performance gatekeeper
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            pytest tests/test_performance_gatekeeper.py tests/test_parallel_scaling.py -v --tb=short

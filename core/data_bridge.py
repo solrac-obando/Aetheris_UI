@@ -16,13 +16,20 @@ Security: RemoteAetherProvider acts as a REST proxy - never exposes DB credentia
 Aether-Guard Compliance: All data normalization uses epsilon-protected division
 and clamped output ranges to prevent physics engine explosions.
 """
-import sqlite3
 import json
 import os
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import numpy as np
+
+# sqlite3 is unvendored in Pyodide — import lazily only when needed
+_SQLITE_AVAILABLE = False
+try:
+    import sqlite3
+    _SQLITE_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    pass
 
 
 # ============================================================================
@@ -274,6 +281,11 @@ class SQLiteProvider(BaseAetherProvider):
         """Establish connection to SQLite database."""
         if self._conn is not None:
             return  # Already connected
+        
+        if not _SQLITE_AVAILABLE:
+            warnings.warn("sqlite3 is not available in this environment (Pyodide: run await pyodide.loadPackage('sqlite3'))")
+            self._conn = None
+            return
         
         try:
             # Ensure parent directory exists

@@ -294,8 +294,9 @@
             pyodide = await loadPyodide({
                 indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/'
             });
-            setProgress(60, 'Loading NumPy...');
+            setProgress(60, 'Loading NumPy and sqlite3...');
             await pyodide.loadPackage('numpy');
+            await pyodide.loadPackage('sqlite3');
 
             setProgress(70, 'Mounting core modules...');
             const coreFiles = [
