@@ -291,19 +291,20 @@ def _run_kivy():
         """Sleek dark button with rounded corners and glow border."""
         def __init__(self, text="", **kw):
             super().__init__(**kw)
-            self._label = Label(text=text, color=(0.85, 0.85, 0.9, 1), font_size=12)
+            self._btn_text = text
+            self._label = Label(text=text, color=(0.92, 0.93, 0.97, 1), font_size=12)
             self.add_widget(self._label)
             self._pressed = False
             self.bind(size=self._redraw, pos=self._redraw)
             self._redraw()
 
         def _redraw(self, *args):
-            self.canvas.clear()
+            self.canvas.before.clear()
             bg = (0.12, 0.13, 0.18, 0.9) if not self._pressed else (0.18, 0.2, 0.28, 0.95)
-            border = (0.25, 0.35, 0.6, 0.6) if self._pressed else (0.15, 0.15, 0.2, 0.3)
-            with self.canvas:
+            border = (0.3, 0.4, 0.7, 0.7) if self._pressed else (0.2, 0.22, 0.3, 0.4)
+            with self.canvas.before:
                 # Glow
-                Color(*border[:3], 0.12)
+                Color(*border[:3], 0.1)
                 RoundedRectangle(pos=(self.x - 3, self.y - 3),
                                  size=(self.width + 6, self.height + 6),
                                  radius=[8, 8, 8, 8])
@@ -313,9 +314,11 @@ def _run_kivy():
                 # Border
                 Color(*border)
                 Line(rounded_rectangle=(self.x, self.y, self.width, self.height, 6, 6, 6, 6), width=1.2)
-            self._label.pos = (self.x, self.y + (self.height - self._label.texture_size[1]) / 2)
-            self._label.size = self._label.texture_size
+            # Position label on top
+            tw, th = self._label.texture_size
+            self._label.size = (tw, th)
             self._label.center_x = self.center_x
+            self._label.center_y = self.center_y
 
         def on_touch_down(self, touch):
             if self.collide_point(*touch.pos):
