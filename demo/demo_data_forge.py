@@ -338,8 +338,7 @@ def _run_kivy():
         def __init__(self, **kw):
             super().__init__(**kw)
             self._title = Label(text=_("title"), pos=(20, WIN_H - 28),
-                                color=(0.55, 0.6, 0.75, 1), font_size=17,
-                                font_name="RobotoMono" if "RobotoMono" else "")
+                                color=(0.55, 0.6, 0.75, 1), font_size=17)
             self._subtitle = Label(text=_("subtitle"), pos=(22, WIN_H - 52),
                                    color=(0.3, 0.32, 0.4, 1), font_size=11)
             self._status = Label(text=_("no_data"), pos=(20, 8),
