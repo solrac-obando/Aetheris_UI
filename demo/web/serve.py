@@ -30,10 +30,10 @@ class WASMHandler(SimpleHTTPRequestHandler):
 
 def main(port=8080):
     os.chdir(str(WEB_DIR))
-    server = HTTPServer(('0.0.0.0', PORT), WASMHandler)
+    server = HTTPServer(('0.0.0.0', port), WASMHandler)
     print(f"=" * 50)
     print(f"  AETHER-WEB Sandbox Server")
-    print(f"  http://localhost:{PORT}")
+    print(f"  http://localhost:{port}")
     print(f"  Serving: {WEB_DIR}")
     print(f"=" * 50)
     try:

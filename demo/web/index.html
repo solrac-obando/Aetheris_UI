@@ -366,7 +366,11 @@
     async function init() {
         try {
             pyodide = await loadPyodide();
-            document.getElementById('stat-engine').textContent = 'Pyodide ✓';
+            document.getElementById('stat-engine').textContent = 'Loading numpy…';
+
+            // Load numpy — required by aether_wasm.py
+            await pyodide.loadPackage('numpy');
+            document.getElementById('stat-engine').textContent = 'NumPy ✓';
 
             // Fetch and run Python module
             const resp = await fetch('aether_wasm.py');
