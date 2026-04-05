@@ -62,12 +62,21 @@ class AetherEngine:
         self._default_viscosity = 0.1
         self._default_boundary_padding = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         self._default_spacing = 0.0
+        self._audio_bridge = None
         # HPC batch buffers (pre-allocated for zero-allocation tick)
         self._batch_states: Optional[np.ndarray] = None
         self._batch_velocities: Optional[np.ndarray] = None
         self._batch_targets: Optional[np.ndarray] = None
         self._batch_forces: Optional[np.ndarray] = None
         self._batch_dirty = True
+
+    @property
+    def audio_bridge(self):
+        return self._audio_bridge
+
+    @audio_bridge.setter
+    def audio_bridge(self, bridge):
+        self._audio_bridge = bridge
 
     def _ensure_batch_buffers(self, n: int) -> None:
         """Allocate or resize batch buffers for parallel kernels."""
@@ -173,6 +182,12 @@ class AetherEngine:
         viscosity_multiplier = self.state_manager.check_teleportation_shock(win_w, win_h)
         base_viscosity = self._default_viscosity
         active_viscosity = min(base_viscosity * viscosity_multiplier, 1.0)
+
+        # Audio trigger evaluation (before physics integration)
+        if self._audio_bridge is not None:
+            for element in self._elements:
+                if element._sound_trigger is not None:
+                    element.evaluate_sound_trigger(self._audio_bridge)
 
         # Use batch parallel kernels for 10+ elements
         use_batch = solver.HAS_NUMBA and n_elements >= 10

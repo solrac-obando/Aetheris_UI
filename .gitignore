@@ -39,5 +39,7 @@ tests_stress/
 *iron_mountain*.py
 *titan*.py
 
-# ── Internal audit reports ──
+# ── Internal audit and blueprint reports ──
 AETHERIS_AUDIT.md
+docs/FUTURE_PROPOSALS.md
+docs/FUTURE_PROPOSALS_ES.md

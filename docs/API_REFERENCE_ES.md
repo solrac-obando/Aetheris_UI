@@ -20,6 +20,7 @@
 - [Renderizador Kivy (`kivy_renderer.py`)](#renderizador-kivy-kivy_rendererpy)
 - [Renderizador Tkinter (`tkinter_renderer.py`)](#renderizador-tkinter-tkinter_rendererpy)
 - [Puente del Solver (`solver_bridge.py`)](#puente-del-solver-solver_bridgepy)
+- [Puente de Audio (`audio_bridge.py`)](#puente-de-audio-audio_bridgepy)
 
 ---
 
@@ -159,13 +160,14 @@ Actualiza el estado de física usando integración de Euler semi-implícita.
 
 Clase base abstracta para todos los elementos de la interfaz. Cada elemento posee un `StateTensor` y define cómo calcular su estado objetivo (asíntota).
 
-#### `__init__(x=0, y=0, w=100, h=100, color=(1,1,1,1), z=0)`
+#### `__init__(x=0, y=0, w=100, h=100, color=(1,1,1,1), z=0, sound_trigger=None)`
 
 **Parámetros:**
 - `x, y`: Coordenadas de posición
 - `w, h`: Ancho y alto
 - `color`: Tupla RGBA, valores float32 de 0 a 1
 - `z`: Índice-Z para profundidad de renderizado
+- `sound_trigger`: Diccionario opcional para disparadores de sonido (ej. `{"impact": "撞击.ogg", "settle": "asentamiento.wav"}`)
 
 #### `calculate_asymptotes(container_w, container_h) -> np.ndarray` *(abstracto)*
 
@@ -660,6 +662,42 @@ Obtiene estado del elemento por ID.
 #### `delete_element_state(element_id)`
 
 Elimina estado del elemento por ID.
+
+---
+
+## Puente de Audio (`audio_bridge.py`)
+
+### `class AetherAudioBridge(ABC)`
+
+Clase base abstracta para la reproducción de audio agnóstica de la plataforma.
+
+#### `play(sound_path, volume=1.0)` *(abstracto)*
+
+Reproduce un archivo de sonido.
+
+#### `stop_all()` *(abstracto)*
+
+Detiene todos los sonidos que se están reproduciendo actualmente.
+
+### `class DesktopAudioProvider(AetherAudioBridge)`
+
+Proveedor de audio de alta fidelidad para Linux/Windows/macOS utilizando `PyOgg` y `PyAudio`. Utiliza un pool de hilos dedicado para evitar bloquear el motor de física.
+
+### `class MobileAudioProvider(AetherAudioBridge)`
+
+Proveedor de audio de baja latencia para Android/iOS utilizando `pygame.mixer`.
+
+### `class WebAudioProvider(AetherAudioBridge)`
+
+Proveedor de audio para WebAssembly. Emite mensajes JSON a través del puente PWA hacia la Web Audio API del navegador.
+
+### `class MockAudioProvider(AetherAudioBridge)`
+
+Proveedor de audio "headless" para CI/CD. Registra eventos de sonido en un búfer sin emitir audio real.
+
+### `create_audio_bridge(platform='desktop') -> AetherAudioBridge`
+
+Función de fábrica para crear el puente de audio apropiado según el entorno de ejecución actual.
 
 **Retorna:**
 - `True` si se eliminó la fila, `False` en caso contrario.

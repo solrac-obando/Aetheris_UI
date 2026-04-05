@@ -15,6 +15,11 @@
 - [7. Rendering Pipeline Architecture](#7-rendering-pipeline-architecture)
 - [8. Server-Driven UI & the Tensor Compiler](#8-server-driven-ui--the-tensor-compiler)
 - [9. Performance Characteristics](#9-performance-characteristics)
+- [10. Aether-Data: The Database Bridge](#10-aether-data-the-database-bridge)
+- [11. Haptic Physics: Drag, Drop & Throw](#11-haptic-physics-drag-drop--throw)
+- [12. Aether-Guard: Numerical Stability Clamping](#12-aether-guard-numerical-stability-clamping)
+- [13. Physics-Driven Audio Layer](#13-physics-driven-audio-layer)
+- [14. Roadmap: Vectorization to 100,000 Elements](#14-roadmap-vectorization-to-100000-elements)
 
 ---
 
@@ -349,15 +354,18 @@ A 300ms transition requires `k = 16 / 0.3² ≈ 177.8`.
 
 ## 9. Performance Characteristics
 
-### Desktop (Numba-optimized)
+### Desktop (Numba-optimized Batch Kernels)
 
-| Operation | Time (μs) |
-|-----------|-----------|
-| Restoring force (per element) | ~0.1 |
-| Boundary forces (per element) | ~0.2 |
-| Euler integration (per element) | ~0.3 |
-| Full tick (10 elements) | ~5 |
-| Full tick (100 elements) | ~50 |
+For simulations with 10+ elements, Aetheris UI automatically switches to **vectorized batch kernels**. These are JIT-compiled with Numba to execute at raw binary speed, utilizing CPU caches and SIMD instructions.
+
+| Operation | Time (μs) per 100 elements |
+|-----------|----------------------------|
+| Batch Restoring Forces | ~12 |
+| Batch Boundary Forces | ~18 |
+| Batch Integration | ~25 |
+| **Total Core Tick** | **~55 μs** |
+
+All operations are well within the **16.67ms budget** for 60 FPS, even for 5,000+ elements.
 
 ### Web (Pure NumPy via Pyodide)
 
@@ -515,3 +523,33 @@ Aetheris UI occupies a unique niche: **physics-driven data visualization for int
 - Financial market visualizations (Bloomberg/TradingView)
 - AI embedding visualization (pgvector → physical particles)
 - Interactive educational tools (physics, math, data science)
+
+---
+
+## 13. Physics-Driven Audio Layer
+
+### Post-Physics/Pre-Integration Evaluation
+
+To maintain 100% synchronicity between visual motion and sound, audio triggers are evaluated **after force accumulation but before position integration**. This ensures that the velocity used for "Impact" sounds reflects the kinetic energy of the current frame's collision, not the damped state of the previous frame.
+
+### AetherAudioBridge Architecture
+
+The audio layer is Decoupled from the engine via the `AetherAudioBridge` abstract base class. This allows for platform-specific providers:
+- **DesktopAudioProvider**: Uses `PyOgg` and `PyAudio` with daemonized threads to prevent UI blocking.
+- **MobileAudioProvider**: Uses `pygame.mixer` for Low-latency mobile playback.
+- **WebAudioProvider**: Emits JSON messages via the PWA service worker to the browser's Web Audio API.
+
+### Trigger Logic
+- **Impact**: `||v|| > threshold`. Volume is scaled linearly with velocity magnitude.
+- **Settle**: Triggered when **Epsilon Snapping** occurs, indicating the element has reached a static state.
+- **Collision**: Triggered when acceleration spikes due to boundary repulsion.
+
+---
+
+## 14. Roadmap: Vectorization to 100,000 Elements
+
+The current bottleneck in Aetheris UI is the Python loop used for asymptote calculation (which resides in the `DifferentialElement` objects). To reach **100,000+ elements at 60 FPS**, the engine must evolve into a pure **Data-Oriented Design (DOD)**:
+
+1. **Fully Vectorized Asymptotes**: Moving the logic from `element.calculate_asymptotes()` into large NumPy matrices processed by Numba or GPU kernels.
+2. **GPU Tensors**: Using `CuPy` or raw OpenGL Compute Shaders to keep the StateTensors on the GPU, eliminating the CPU-to-GPU data transfer overhead.
+3. **Entity Component System (ECS)**: Replacing the object-oriented `DifferentialElement` hierarchy with a flat data structure where elements are just indices into a global state array.

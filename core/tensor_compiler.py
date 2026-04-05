@@ -73,7 +73,12 @@ class TensorCompiler:
     def compile_intent(self, intent_json: dict) -> np.ndarray:
         layout = intent_json.get("layout", "column")
         spacing = float(intent_json.get("spacing", 0))
-        animation = intent_json.get("animation", "organic")
+        animation_raw = intent_json.get("animation", "organic")
+        if isinstance(animation_raw, dict):
+            animation = animation_raw.get("style", "organic")
+        else:
+            animation = str(animation_raw)
+            
         transition_speed_ms = float(intent_json.get("transition_speed_ms", 300))
         
         raw_padding = intent_json.get("padding", 0)

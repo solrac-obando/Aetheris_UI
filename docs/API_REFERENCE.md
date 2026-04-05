@@ -20,6 +20,7 @@
 - [Kivy Renderer (`kivy_renderer.py`)](#kivy-renderer-kivy_rendererpy)
 - [Tkinter Renderer (`tkinter_renderer.py`)](#tkinter-renderer-tkinter_rendererpy)
 - [Solver Bridge (`solver_bridge.py`)](#solver-bridge-solver_bridgepy)
+- [Audio Bridge (`audio_bridge.py`)](#audio-bridge-audio_bridgepy)
 
 ---
 
@@ -159,13 +160,14 @@ Update physics state using semi-implicit Euler integration.
 
 Abstract base class for all UI elements. Each element owns a `StateTensor` and defines how to calculate its target state (asymptote).
 
-#### `__init__(x=0, y=0, w=100, h=100, color=(1,1,1,1), z=0)`
+#### `__init__(x=0, y=0, w=100, h=100, color=(1,1,1,1), z=0, sound_trigger=None)`
 
 **Args:**
 - `x, y`: Position coordinates
 - `w, h`: Width and height
 - `color`: RGBA tuple, float32 values 0-1
 - `z`: Z-index for rendering depth
+- `sound_trigger`: Optional dictionary for sound triggers (e.g., `{"impact": "撞击.ogg", "settle": "asentamiento.wav"}`)
 
 #### `calculate_asymptotes(container_w, container_h) -> np.ndarray` *(abstract)*
 
@@ -700,3 +702,39 @@ Retrieves element state via server proxy.
 #### `delete_element_state(element_id)`
 
 Deletes element state via server proxy.
+
+---
+
+## Audio Bridge (`audio_bridge.py`)
+
+### `class AetherAudioBridge(ABC)`
+
+Abstract base class for platform-agnostic audio playback.
+
+#### `play(sound_path, volume=1.0)` *(abstract)*
+
+Play a sound file.
+
+#### `stop_all()` *(abstract)*
+
+Stop all currently playing sounds.
+
+### `class DesktopAudioProvider(AetherAudioBridge)`
+
+High-fidelity audio provider for Linux/Windows/macOS using `PyOgg` and `PyAudio`. Uses a dedicated thread pool to avoid blocking the physics engine.
+
+### `class MobileAudioProvider(AetherAudioBridge)`
+
+Low-latency audio provider for Android/iOS using `pygame.mixer`.
+
+### `class WebAudioProvider(AetherAudioBridge)`
+
+WebAssembly audio provider. Emits JSON messages via the PWA bridge to the browser's Web Audio API.
+
+### `class MockAudioProvider(AetherAudioBridge)`
+
+Headless audio provider for CI/CD. Logs sound events to a buffer without emitting audio.
+
+### `create_audio_bridge(platform='desktop') -> AetherAudioBridge`
+
+Factory function to create the appropriate audio bridge for the current runtime.

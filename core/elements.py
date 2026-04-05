@@ -16,7 +16,8 @@ class DifferentialElement(ABC):
     [x, y, width, height] and evolves through forces and integration.
     """
     
-    def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0):
+    def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0,
+                 sound_trigger=None):
         """Initialize a differential element.
         
         Args:
@@ -24,10 +25,108 @@ class DifferentialElement(ABC):
             w, h: Width and height dimensions
             color: RGBA tuple (float32, values 0-1)
             z: Z-index for rendering depth
+            sound_trigger: Sound trigger spec, e.g. 'impact:0.8' or
+                          'on:click_sound;off:release_sound' or 'settle'
         """
         self.tensor = StateTensor(x, y, w, h)
         self._color = np.array(color, dtype=np.float32)
         self._z_index = z
+        self._sound_trigger = sound_trigger
+        self._sound_triggered_this_frame = False
+        self._prev_velocity_mag = 0.0
+
+    @property
+    def sound_trigger(self):
+        return self._sound_trigger
+
+    @sound_trigger.setter
+    def sound_trigger(self, value):
+        self._sound_trigger = value
+
+    def evaluate_sound_trigger(self, bridge=None) -> bool:
+        """Evaluate sound trigger conditions based on current physics state.
+
+        Supported trigger formats:
+        - 'impact:0.8' — trigger when velocity L2 norm exceeds 0.8
+        - 'settle' — trigger when epsilon-snapping occurs
+        - 'on:click_sound;off:release_sound' — multi-sound state definition
+        - 'collision:wall_bounce' — trigger on boundary collision
+
+        Args:
+            bridge: Optional AetherAudioBridge instance
+
+        Returns:
+            True if a sound was triggered
+        """
+        if not self._sound_trigger:
+            return False
+
+        self._sound_triggered_this_frame = False
+        trigger = self._sound_trigger
+
+        if ';' in trigger:
+            return self._evaluate_multi_sound(trigger, bridge)
+
+        if trigger == 'settle':
+            vel_mag = np.linalg.norm(self.tensor.velocity)
+            if vel_mag < 0.1 and self._prev_velocity_mag >= 0.1:
+                self._sound_triggered_this_frame = True
+                if bridge:
+                    bridge.play_sound('settle', volume=0.3, pitch=1.0)
+                return True
+
+        if trigger.startswith('impact:'):
+            try:
+                threshold = float(trigger.split(':')[1])
+            except (ValueError, IndexError):
+                threshold = 0.5
+            vel_mag = np.linalg.norm(self.tensor.velocity)
+            if vel_mag > threshold and self._prev_velocity_mag <= threshold:
+                self._sound_triggered_this_frame = True
+                vol = min(vel_mag / 10.0, 1.0)
+                if bridge:
+                    bridge.play_sound('impact', volume=vol, pitch=1.0)
+                return True
+
+        if trigger.startswith('collision:'):
+            try:
+                sound_id = trigger.split(':', 1)[1]
+            except IndexError:
+                sound_id = 'collision'
+            acc_mag = np.linalg.norm(self.tensor.acceleration)
+            if acc_mag > 50.0:
+                self._sound_triggered_this_frame = True
+                if bridge:
+                    bridge.play_sound(sound_id, volume=min(acc_mag / 200.0, 1.0), pitch=1.0)
+                return True
+
+        self._prev_velocity_mag = float(np.linalg.norm(self.tensor.velocity))
+        return False
+
+    def _evaluate_multi_sound(self, trigger: str, bridge=None) -> bool:
+        """Evaluate multi-sound trigger like 'on:click;off:release'."""
+        parts = trigger.split(';')
+        for part in parts:
+            if ':' in part:
+                state, sound_id = part.split(':', 1)
+                state = state.strip().lower()
+                sound_id = sound_id.strip()
+                if state == 'on' or state == 'active':
+                    vel_mag = np.linalg.norm(self.tensor.velocity)
+                    if vel_mag > 0.5 and self._prev_velocity_mag <= 0.5:
+                        self._sound_triggered_this_frame = True
+                        if bridge:
+                            bridge.play_sound(sound_id, volume=0.5, pitch=1.0)
+                        return True
+                elif state == 'off' or state == 'inactive':
+                    vel_mag = np.linalg.norm(self.tensor.velocity)
+                    if vel_mag < 0.1 and self._prev_velocity_mag >= 0.1:
+                        self._sound_triggered_this_frame = True
+                        if bridge:
+                            bridge.play_sound(sound_id, volume=0.3, pitch=0.8)
+                        return True
+        self._prev_velocity_mag = float(np.linalg.norm(self.tensor.velocity))
+        return False
 
     @abstractmethod
     def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
@@ -66,7 +165,7 @@ class StaticBox(DifferentialElement):
     regardless of container size.
     """
     
-    def __init__(self, x, y, w, h, color=(1, 1, 1, 1), z=0):
+    def __init__(self, x, y, w, h, color=(1, 1, 1, 1), z=0, sound_trigger=None):
         """Initialize a static box with fixed target rectangle.
         
         Args:
@@ -74,8 +173,9 @@ class StaticBox(DifferentialElement):
             w, h: Width and height of the target rectangle
             color: RGBA tuple (float32, values 0-1)
             z: Z-index for rendering depth
+            sound_trigger: Sound trigger spec
         """
-        super().__init__(x, y, w, h, color, z)
+        super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._target_rect = np.array([x, y, w, h], dtype=np.float32)
 
     def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
@@ -92,7 +192,7 @@ class SmartPanel(DifferentialElement):
     By default, maintains 5% padding on all sides, adapting to container size changes.
     """
     
-    def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0, padding=0.05):
+    def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0, padding=0.05, sound_trigger=None):
         """Initialize a smart panel.
         
         Args:
@@ -101,8 +201,9 @@ class SmartPanel(DifferentialElement):
             color: RGBA tuple (float32, values 0-1)
             z: Z-index for rendering depth
             padding: Fraction of container to maintain as padding (0.05 = 5%)
+            sound_trigger: Sound trigger spec
         """
-        super().__init__(x, y, w, h, color, z)
+        super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._padding = padding
 
     def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
@@ -135,7 +236,7 @@ class FlexibleTextNode(DifferentialElement):
     In future phases, it would integrate with text rendering systems.
     """
     
-    def __init__(self, x=0, y=0, w=200, h=50, color=(1, 1, 1, 1), z=0, text="Text"):
+    def __init__(self, x=0, y=0, w=200, h=50, color=(1, 1, 1, 1), z=0, text="Text", sound_trigger=None):
         """Initialize a flexible text node.
         
         Args:
@@ -144,8 +245,9 @@ class FlexibleTextNode(DifferentialElement):
             color: RGBA tuple (float32, values 0-1)
             z: Z-index for rendering depth
             text: The text content to display
+            sound_trigger: Sound trigger spec
         """
-        super().__init__(x, y, w, h, color, z)
+        super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._text = text
         # For now, treat as static element - future versions will have text-specific layout logic
 
@@ -177,7 +279,7 @@ class SmartButton(DifferentialElement):
     """
     
     def __init__(self, parent, offset_x=0, offset_y=0, offset_w=100, offset_h=50, 
-                 color=(0.8, 0.8, 0.2, 1.0), z=0):
+                 color=(0.8, 0.8, 0.2, 1.0), z=0, sound_trigger=None):
         """Initialize a smart button anchored to a parent.
         
         Args:
@@ -188,8 +290,8 @@ class SmartButton(DifferentialElement):
             offset_h: Height of the button
             color: RGBA tuple (float32, values 0-1)
             z: Z-index for rendering depth
+            sound_trigger: Sound trigger spec
         """
-        # Initialize at parent's position + offset
         super().__init__(
             parent.tensor.state[0] + offset_x,
             parent.tensor.state[1] + offset_y,
@@ -245,7 +347,7 @@ class CanvasTextNode(DifferentialElement):
     _element_type = "canvas_text"
     
     def __init__(self, x=0, y=0, w=200, h=50, color=(1, 1, 1, 1), z=0,
-                 text="Text", font_size=24, font_family="Arial"):
+                 text="Text", font_size=24, font_family="Arial", sound_trigger=None):
         """Initialize a canvas text node.
         
         Args:
@@ -256,8 +358,9 @@ class CanvasTextNode(DifferentialElement):
             text: The text content to display
             font_size: Font size in pixels
             font_family: Font family name
+            sound_trigger: Sound trigger spec
         """
-        super().__init__(x, y, w, h, color, z)
+        super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._text = text
         self._font_size = font_size
         self._font_family = font_family
@@ -334,7 +437,7 @@ class DOMTextNode(DifferentialElement):
     _element_type = "dom_text"
     
     def __init__(self, x=0, y=0, w=200, h=50, color=(0, 0, 0, 0), z=0,
-                 text="Text", font_size=16, font_family="Arial", text_color=(1, 1, 1, 1)):
+                 text="Text", font_size=16, font_family="Arial", text_color=(1, 1, 1, 1), sound_trigger=None):
         """Initialize a DOM text node.
         
         Args:
@@ -346,8 +449,9 @@ class DOMTextNode(DifferentialElement):
             font_size: Font size in pixels
             font_family: Font family name
             text_color: RGBA tuple (float32, values 0-1) for the text color
+            sound_trigger: Sound trigger spec
         """
-        super().__init__(x, y, w, h, color, z)
+        super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._text = text
         self._font_size = font_size
         self._font_family = font_family

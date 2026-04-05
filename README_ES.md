@@ -3,8 +3,8 @@
 > **Física-como-UI** — El primer motor de interfaz de usuario de alto rendimiento impulsado por álgebra lineal para Python y WebAssembly.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Licencia: MIT](https://img.shields.io/badge/Licencia-MIT-green.svg)](LICENSE)
-[![Pruebas](https://img.shields.io/badge/pruebas-31%20aprobadas-brightgreen.svg)](tests/)
+[![Licencia](https://img.shields.io/badge/Licencia-Apache%202.0-blue.svg)](LICENSE)
+[![Pruebas](https://img.shields.io/badge/pruebas-360%2B%20aprobadas-brightgreen.svg)](tests/)
 
 Aetheris UI trata el diseño de interfaces de usuario como un **sistema físico dinámico** gobernado por las leyes de la mecánica clásica. En lugar de reglas de posicionamiento estáticas, cada elemento de la interfaz es una partícula con posición, velocidad y aceleración — evolucionando a través de **integración de Euler** con fuerzas restauradoras de la **Ley de Hooke**, **amortiguamiento crítico** y **limitación por norma L2** para estabilidad numérica.
 
@@ -28,18 +28,11 @@ La misma lógica física en Python impulsa **tres pipelines de renderizado nativ
 
 ## Características
 
-- **Diseño Impulsado por Física** — Cada elemento es una partícula con estado, velocidad y aceleración. Las transiciones de la interfaz son sistemas masa-resorte, no animaciones CSS.
-- **Tres Renderizadores Nativos** — Un motor de física, tres backends de renderizado:
-  - **Web**: Pyodide/WASM → HTML5 Canvas 2D + superposición DOM (listo para PWA)
-  - **Escritorio**: ModernGL con shaders SDF + texturas de texto Pillow
-  - **Móvil**: Kivy con inversión de coordenadas del eje Y + etiquetas híbridas
-- **Seguridad Aether-Guard** — Limitación por norma L2, división protegida por épsilon, detección de NaN/Inf, y la Regla del 99% (Ajuste por Épsilon) previenen explosiones numéricas.
-- **Puente Aether-Data** — Población de elementos UI desde bases de datos SQLite o PostgreSQL con normalización Min-Max automática y visualización de embeddings de IA.
-- **Interfaz Impulsada por Servidor** — Definiciones de Intención JSON compiladas en coeficientes de física en tiempo de ejecución vía TensorCompiler.
-- **Hiper-Amortiguamiento** — Absorción automática de choques cuando las dimensiones de la ventana cambian drásticamente (>200px), previniendo el sobrepaso cinético de la Ley de Hooke.
-- **Composición de Texto Híbrida** — Texto renderizado en Canvas (rápido, no seleccionable) y superposiciones de etiquetas DOM/Kivy (seleccionables, accesibles) coexisten en la misma escena.
-- **Gestión de Memoria Sin Fugas** — Objetos PyProxy destruidos cada frame en WASM; cachés de texturas en ModernGL; reciclaje de nodos DOM en Kivy.
-- **Física Háptica** — Arrastrar, soltar y lanzar con Diferencia Regresiva de Segundo Orden para interacción suave y natural.
+- **Integración de Audio Impulsada por Física** — Puente de audio no bloqueante y agnóstico de plataforma (`AetherAudioBridge`). Soporta disparadores de `impacto`, `asentamiento` y `colisión` derivados directamente de cambios en el estado físico.
+- **Núcleo Optimizado para HPC** — Kernels de física vectorizados acelerados por Numba. Procesamiento por lotes en paralelo para simulaciones de UI a gran escala (desde 10 hasta más de 5,000 elementos).
+- **Librería de 32 Componentes** — Una librería completa de componentes conscientes de la física en 4 categorías: Dashboard (Gauges, Orbs), Interactivos (Toggles, Sliders), Escritorio (Windows, Modals) y Diseño (Grids, Stacks).
+- **Seguridad Aether-Guard** — Estabilidad numérica de grado industrial. Limitación por norma L2, división protegida por épsilon y sanitización de NaN/Inf previenen colapsos del motor bajo fuerzas extremas.
+- **Hidratación HTML/CSS** — Definición de UI declarativa vía `AetherHTMLParser`. Mapea etiquetas HTML estándar y atributos estilo CSS a propiedades de física con normalización de kebab-case a snake_case.
 
 ---
 
@@ -197,6 +190,36 @@ db.disconnect()
 
 ---
 
+## Galería de Componentes (La Suite de 32 Componentes)
+
+Aetheris UI incluye 32 componentes pre-construidos diseñados para tableros de alto rendimiento y herramientas interactivas:
+
+### Dashboard y Métricas
+- `AetherGauge`: Aguja de resorte rotacional con amortiguamiento.
+- `AetherSparkline`: Gráfico de vectores k mínimo en tiempo real.
+- `AetherStatusOrb`: Luz pulsante basada en frecuencia.
+- `AetherValueMetric`: Nodo numérico consciente de unidades.
+- `AetherRadialProgress`: Relleno circular con ajuste elástico.
+
+### Controles Interactivos
+- `AetherKineticToggle`: Interruptor binario con inercia.
+- `AetherPhysicsSlider`: Control de rango cargado por resorte.
+- `AetherMagnetButton`: Botón con fuerzas de atracción al cursor.
+- `AetherElasticInput`: Entrada de texto con retroalimentación de vibración.
+
+### Escritorio y Contenedores
+- `AetherWindow`: Contenedor con barra de título anclada por gravedad.
+- `AetherModal`: Superposición escalada con entrada de resorte.
+- `AetherSideNav`: Panel deslizante con fricción elástica.
+- `AetherToolbar`: Arreglo de botones con entrada escalonada.
+
+### Diseño y Grillas
+- `AetherHeatMap`: Celdas de grilla normalizadas por física.
+- `AetherGravityGrid`: Diseño de mampostería auto-organizado.
+- `AetherElasticStack`: Tarjetas en capas con ordenamiento por profundidad.
+
+---
+
 ## La Trinidad del Multi-Renderizado
 
 La innovación central de Aetheris UI es la **arquitectura de renderizado desacoplada**. El motor de física produce un único arreglo NumPy estructurado por frame:
@@ -329,7 +352,7 @@ Ver [docs/API_REFERENCE_ES.md](docs/API_REFERENCE_ES.md) para documentación com
 
 ## Licencia
 
-Licencia MIT. Ver [LICENSE](LICENSE) para detalles.
+Licencia Apache 2.0. Ver [LICENSE](LICENSE) para detalles.
 
 ---
 

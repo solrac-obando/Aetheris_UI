@@ -3,8 +3,8 @@
 > **Physics-as-UI** — The first high-performance UI engine driven by linear algebra for Python & WebAssembly.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-31%20passing-brightgreen.svg)](tests/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-360%2B%20passing-brightgreen.svg)](tests/)
 
 Aetheris UI treats user interface layout as a **dynamic physical system** governed by the laws of classical mechanics. Instead of static positioning rules, every UI element is a particle with position, velocity, and acceleration — evolving through **Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
 
@@ -28,18 +28,11 @@ The same Python physics logic drives **three native rendering pipelines**: HTML5
 
 ## Features
 
-- **Physics-Driven Layout** — Every element is a particle with state, velocity, and acceleration. UI transitions are spring-mass systems, not CSS animations.
-- **Three Native Renderers** — One physics engine, three rendering backends:
-  - **Web**: Pyodide/WASM → HTML5 Canvas 2D + DOM overlay (PWA-ready)
-  - **Desktop**: ModernGL with SDF shaders + Pillow text textures
-  - **Mobile**: Kivy with Y-axis coordinate inversion + hybrid labels
-- **Aether-Guard Safety** — L2 norm clamping, epsilon-protected division, NaN/Inf detection, and the 99% Rule (Epsilon Snapping) prevent numerical explosions.
-- **Aether-Data Bridge** — Populate UI elements from SQLite or PostgreSQL databases with automatic Min-Max normalization and AI embedding visualization.
-- **Server-Driven UI** — JSON Intent definitions compiled into physics coefficients at runtime via the TensorCompiler.
-- **Hyper-Damping** — Automatic shock absorption when window dimensions change drastically (>200px), preventing Hooke's Law kinetic overshoot.
-- **Hybrid Text Compositing** — Canvas-rendered text (fast, non-selectable) and DOM/Kivy Label overlays (selectable, accessible) coexist in the same scene.
-- **Zero-Leak Memory Management** — PyProxy objects destroyed every frame in WASM; texture caches in ModernGL; DOM node recycling in Kivy.
-- **Haptic Physics** — Drag, drop, and throw with Second-Order Backward Difference for smooth, natural interaction.
+- **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers directly derived from physical state changes.
+- **HPC-Optimized Core** — Numba-accelerated vectorized physics kernels. Parallel batch processing for large-scale UI simulations (10 to 5,000+ elements).
+- **32-Component Library** — A comprehensive library of physics-aware components across 4 categories: Dashboard (Gauges, Orbs), Interactive (Toggles, Sliders), Desktop (Windows, Modals), and Layout (Grids, Stacks).
+- **Aether-Guard Safety** — Industrial-grade numerical stability. L2 norm clamping, epsilon-protected division, and NaN/Inf sanitization prevent engine collapses under extreme forces.
+- **HTML/CSS Hydration** — Declarative UI definition via `AetherHTMLParser`. Maps standard HTML tags and CSS-like attributes to physics properties with kebab-to-snake normalization.
 
 ---
 
@@ -209,6 +202,36 @@ force = vector_to_tensor(embedding, scale=100.0)
 
 ---
 
+## Component Gallery (The 32-Component Suite)
+
+Aetheris UI includes 32 pre-built components designed for high-performance dashboards and interactive tools:
+
+### Dashboard & Metrics
+- `AetherGauge`: Rotational spring needle with damping.
+- `AetherSparkline`: Real-time minimal k-vector plot.
+- `AetherStatusOrb`: Pulsing frequency-based light.
+- `AetherValueMetric`: Unit-aware numeric node.
+- `AetherRadialProgress`: Circular fill with elastic snap.
+
+### Interactive Controls
+- `AetherKineticToggle`: Binary switch with inertia.
+- `AetherPhysicsSlider`: Spring-loaded range control.
+- `AetherMagnetButton`: Button with cursor-attraction forces.
+- `AetherElasticInput`: Text input with vibration feedbacks.
+
+### Desktop & Containers
+- `AetherWindow`: Gravity-anchored title bar container.
+- `AetherModal`: Scaled overlay with spring entry.
+- `AetherSideNav`: Sliding panel with elastic friction.
+- `AetherToolbar`: staggered entry button array.
+
+### Layout & Grids
+- `AetherHeatMap`: Physics-normalized grid cells.
+- `AetherGravityGrid`: Self-organizing masonry layout.
+- `AetherElasticStack`: Layered cards with depth-sorting.
+
+---
+
 ## The Multi-Renderer Trinity
 
 Aetheris UI's core innovation is the **decoupled rendering architecture**. The physics engine produces a single structured NumPy array per frame:
@@ -340,7 +363,7 @@ See [docs/API_REFERENCE.md](docs/API_REFERENCE.md) for complete class and method
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 

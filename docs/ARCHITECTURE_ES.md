@@ -15,6 +15,11 @@
 - [7. Arquitectura del Pipeline de Renderizado](#7-arquitectura-del-pipeline-de-renderizado)
 - [8. Interfaz Impulsada por Servidor y el Tensor Compiler](#8-interfaz-impulsada-por-servidor-y-el-tensor-compiler)
 - [9. Características de Rendimiento](#9-características-de-rendimiento)
+- [10. Aether-Data: El Puente de Base de Datos](#10-aether-data-the-database-bridge)
+- [11. Física Háptica: Arrastrar, Soltar y Lanzar](#11-haptic-physics-drag-drop--throw)
+- [12. Aether-Guard: Capa de Seguridad Matemática](#12-aether-guard-capa-de-seguridad-matemática)
+- [13. Capa de Audio Impulsada por Física](#13-capa-de-audio-impulsada-por-física)
+- [14. Roadmap: Vectorización hasta 100,000 Elementos](#14-roadmap-vectorización-hasta-100000-elementos)
 
 ---
 
@@ -358,15 +363,18 @@ Una transición de 300ms requiere `k = 16 / 0.3² ≈ 177.8`. Esta derivación p
 
 ## 9. Características de Rendimiento
 
-### Escritorio (optimizado con Numba)
+### Escritorio (Kernels de Lote Optimizados con Numba)
 
-| Operación | Tiempo (μs) |
-|-----------|-------------|
-| Fuerza restauradora (por elemento) | ~0.1 |
-| Fuerzas de frontera (por elemento) | ~0.2 |
-| Integración de Euler (por elemento) | ~0.3 |
-| Tick completo (10 elementos) | ~5 |
-| Tick completo (100 elementos) | ~50 |
+Para simulaciones con 10 o más elementos, Aetheris UI cambia automáticamente a **kernels de lote vectorizados**. Estos están compilados en JIT con Numba para ejecutarse a velocidad binaria pura, utilizando cachés de CPU e instrucciones SIMD.
+
+| Operación | Tiempo (μs) por cada 100 elementos |
+|-----------|------------------------------------|
+| Fuerzas Restauradoras por Lote | ~12 |
+| Fuerzas de Frontera por Lote | ~18 |
+| Integración por Lote | ~25 |
+| **Tick Core Total** | **~55 μs** |
+
+Todas las operaciones están bien dentro del **presupuesto de 16.67ms** para 60 FPS, incluso para más de 5,000 elementos.
 
 ### Web (NumPy puro vía Pyodide)
 
@@ -515,3 +523,33 @@ Aetheris UI ocupa un nicho único: **visualización de datos impulsada por físi
 - Visualizaciones de mercados financieros (Bloomberg/TradingView)
 - Visualización de embeddings de IA (pgvector → partículas físicas)
 - Herramientas educativas interactivas (física, matemáticas, ciencia de datos)
+
+---
+
+## 13. Capa de Audio Impulsada por Física
+
+### Evaluación Post-Física/Pre-Integración
+
+Para mantener una sincronía del 100% entre el movimiento visual y el sonido, los disparadores de audio se evalúan **después de la acumulación de fuerzas pero antes de la integración de posición**. Esto asegura que la velocidad utilizada para los sonidos de "Impacto" refleje la energía cinética de la colisión del frame actual, no el estado amortiguado del frame anterior.
+
+### Arquitectura de AetherAudioBridge
+
+La capa de audio está desacoplada del motor a través de la clase base abstracta `AetherAudioBridge`. Esto permite proveedores específicos de cada plataforma:
+- **DesktopAudioProvider**: Utiliza `PyOgg` y `PyAudio` con hilos demonizados para prevenir el bloqueo de la interfaz.
+- **MobileAudioProvider**: Utiliza `pygame.mixer` para una reproducción móvil de baja latencia.
+- **WebAudioProvider**: Emite mensajes JSON vía el service worker de la PWA hacia la Web Audio API del navegador.
+
+### Lógica de Disparo
+- **Impacto**: `||v|| > umbral`. El volumen se escala linealmente con la magnitud de la velocidad.
+- **Asentamiento (Settle)**: Se dispara cuando ocurre el **Ajuste por Épsilon (Epsilon Snapping)**, indicando que el elemento ha alcanzado un estado estático.
+- **Colisión**: Se dispara cuando la aceleración tiene picos debido a la repulsión de las fronteras.
+
+---
+
+## 14. Roadmap: Vectorización hasta 100,000 Elementos
+
+El cuello de botella actual en Aetheris UI es el bucle de Python utilizado para el cálculo de asíntotas (que reside en los objetos `DifferentialElement`). Para alcanzar **más de 100,000 elementos a 60 FPS**, el motor debe evolucionar hacia un **Diseño Puro Orientado a Datos (DOD)**:
+
+1. **Asíntotas Totalmente Vectorizadas**: Mover la lógica de `element.calculate_asymptotes()` hacia grandes matrices NumPy procesadas por Numba o kernels de GPU.
+2. **Tensores en GPU**: Utilizar `CuPy` o Shaders de Computación de OpenGL puros para mantener los StateTensors en la GPU, eliminando la sobrecarga de transferencia de datos CPU-GPU.
+3. **Sistema de Componentes de Entidad (ECS)**: Reemplazar la jerarquía de `DifferentialElement` orientada a objetos con una estructura de datos plana donde los elementos son solo índices en un arreglo de estado global.
