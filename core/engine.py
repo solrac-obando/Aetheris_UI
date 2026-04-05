@@ -305,17 +305,16 @@ class AetherEngine:
                 element.tensor.apply_force(force)
                 element.tensor.euler_integrate(self._dt, viscosity=element_viscosity, target_state=target)
             
-        # Data Extraction
+        # Data Extraction (zero-allocation: use direct properties instead of rendering_data dict)
         n_elements = len(self._elements)
         if n_elements == 0:
             return np.zeros(0, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
             
         data = np.zeros(n_elements, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
         for i, element in enumerate(self._elements):
-            r_data = element.rendering_data
-            data[i]['rect'] = r_data['rect']
-            data[i]['color'] = r_data['color']
-            data[i]['z'] = r_data['z']
+            data[i]['rect'] = element.rect
+            data[i]['color'] = element.color
+            data[i]['z'] = element.z_index
 
         # HPC throttle: sleep if tick finished early to maintain 60-70% CPU
         # Only activate for heavy workloads (50+ elements) to avoid overhead on small demos
@@ -333,20 +332,22 @@ class AetherEngine:
         return len(self._elements)
     
     def get_ui_metadata(self) -> str:
-        """Return JSON string containing text metadata for CanvasTextNode and DOMTextNode elements.
+        """Return JSON string containing metadata for elements that expose it.
         
-        The Structured NumPy Array only holds floats, so text data (strings, font sizes)
-        must be exposed through a separate JSON bridge. This method collects all
-        text-based elements and returns their metadata keyed by z-index.
+        The Structured NumPy Array only holds floats, so non-physics data (strings,
+        font sizes, component-specific metadata) must be exposed through a separate
+        JSON bridge. This method collects all elements with a non-None metadata
+        property and returns their data keyed by z-index.
         
         Returns:
-            JSON string: {"z_index": {"type": "canvas_text|dom_text", "text": "...", ...}}
+            JSON string: {"z_index": {"type": "...", "text": "...", ...}}
         """
         metadata = {}
         for element in self._elements:
-            if isinstance(element, (CanvasTextNode, DOMTextNode)):
+            meta = element.metadata
+            if meta is not None:
                 z_key = str(element._z_index)
-                metadata[z_key] = element.text_metadata
+                metadata[z_key] = meta
         return json.dumps(metadata)
     
     def _apply_genre_orbit(self, genre_idx: int, stiffness: float,

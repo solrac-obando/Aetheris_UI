@@ -148,6 +148,9 @@ class DifferentialElement(ABC):
     def rendering_data(self):
         """Returns data needed for rendering the element.
         
+        Note: For zero-allocation tick, use the direct properties instead:
+        element.rect, element.color, element.z_index
+        
         Returns:
             dict: Contains rect (StateTensor.state), color, and z_index
         """
@@ -156,6 +159,45 @@ class DifferentialElement(ABC):
             "color": self._color,
             "z": self._z_index
         }
+
+    @property
+    def rect(self):
+        """Direct access to StateTensor.state for zero-allocation rendering.
+        
+        Returns:
+            numpy.ndarray: Reference to [x, y, width, height] state vector
+        """
+        return self.tensor.state
+
+    @property
+    def color(self):
+        """Direct access to color array for zero-allocation rendering.
+        
+        Returns:
+            numpy.ndarray: Reference to [r, g, b, a] color vector
+        """
+        return self._color
+
+    @property
+    def z_index(self):
+        """Direct access to z-index for zero-allocation rendering.
+        
+        Returns:
+            int: Z-index for rendering depth
+        """
+        return self._z_index
+
+    @property
+    def metadata(self):
+        """Optional metadata for renderer-specific data (text, fonts, etc.).
+        
+        Override in subclasses that need to expose non-physics data to renderers.
+        Returns None by default so the engine can skip elements without metadata.
+        
+        Returns:
+            dict or None: Renderer-specific metadata, or None if not applicable.
+        """
+        return None
 
 
 class StaticBox(DifferentialElement):
@@ -418,6 +460,11 @@ class CanvasTextNode(DifferentialElement):
             "color": self._color.tolist(),
         }
 
+    @property
+    def metadata(self):
+        """Text metadata for renderer bridge. Overrides DifferentialElement.metadata."""
+        return self.text_metadata
+
 
 class DOMTextNode(DifferentialElement):
     """A text element rendered as an HTML <div> overlaid on the Canvas.
@@ -504,3 +551,8 @@ class DOMTextNode(DifferentialElement):
             "color": self._text_color.tolist(),
             "bg_color": self._color.tolist(),
         }
+
+    @property
+    def metadata(self):
+        """Text metadata for renderer bridge. Overrides DifferentialElement.metadata."""
+        return self.text_metadata

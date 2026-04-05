@@ -18,8 +18,10 @@ Platform providers:
 """
 import os
 import sys
+import queue
 import logging
 import threading
+import numpy as np
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
@@ -75,22 +77,99 @@ class AetherAudioBridge(ABC):
 # ============================================================================
 
 class DesktopAudioProvider(AetherAudioBridge):
-    """Desktop audio using PyOgg for .ogg playback in background threads."""
+    """Desktop audio using PyOgg for .ogg playback via a bounded worker queue.
+
+    Uses a single daemon worker thread consuming from a thread-safe queue
+    instead of spawning unbounded threads per sound. This prevents thread
+    exhaustion under high-frequency triggers.
+    """
+
+    _MAX_QUEUE_SIZE = 64
 
     def __init__(self):
         self._sounds: Dict[str, str] = {}
         self._available = False
         self._ogg = None
-        self._opus = None
-        self._vorbis = None
-        self._players = []
+        self._queue: Optional['queue.Queue'] = None
+        self._worker: Optional[threading.Thread] = None
+        self._running = False
+        self._pa = None
         try:
             import pyogg
             self._ogg = pyogg
             self._available = True
-            logger.info("DesktopAudioProvider: PyOgg loaded successfully")
+            self._queue = queue.Queue(maxsize=self._MAX_QUEUE_SIZE)
+            self._running = True
+            self._worker = threading.Thread(
+                target=self._audio_worker,
+                daemon=True,
+                name='AetherAudioWorker',
+            )
+            self._worker.start()
+            logger.info("DesktopAudioProvider: PyOgg loaded, worker thread started")
         except ImportError:
             logger.warning("DesktopAudioProvider: PyOgg not available, falling back to silent mode")
+
+    def _audio_worker(self) -> None:
+        """Single worker thread that processes the audio playback queue."""
+        pa = None
+        while self._running:
+            try:
+                item = self._queue.get(timeout=0.1)
+            except Exception:
+                continue
+            if item is None:
+                break
+            sound_id, path, volume, pitch = item
+            try:
+                if pa is None:
+                    import pyaudio
+                    pa = pyaudio.PyAudio()
+                    self._pa = pa
+
+                opus_filename = None
+                vorbis_filename = None
+                try:
+                    if self._ogg.OpusFile is not None:
+                        opus_file = self._ogg.OpusFile(path)
+                        if opus_file.is_opus:
+                            frequency = opus_file.frequency
+                            channels = opus_file.channels
+                            pcm = opus_file.as_array()
+                            opus_filename = path
+                        else:
+                            raise ValueError("Not an Opus file")
+                except Exception:
+                    try:
+                        if self._ogg.VorbisFile is not None:
+                            vorbis_file = self._ogg.VorbisFile(path)
+                            frequency = vorbis_file.frequency
+                            channels = vorbis_file.channels
+                            pcm = vorbis_file.as_array()
+                            vorbis_filename = path
+                        else:
+                            raise ValueError("VorbisFile not available")
+                    except Exception:
+                        logger.warning(f"DesktopAudioProvider: Cannot decode {path}")
+                        self._queue.task_done()
+                        continue
+
+                stream = pa.open(
+                    format=pyaudio.paInt16,
+                    channels=channels,
+                    rate=frequency,
+                    output=True,
+                )
+                pcm_scaled = (pcm * min(max(volume, 0.0), 1.0)).astype(np.int16)
+                stream.write(pcm_scaled.tobytes())
+                stream.stop_stream()
+                stream.close()
+            except ImportError:
+                logger.warning("DesktopAudioProvider: PyAudio not installed, cannot play sound")
+            except Exception as e:
+                logger.warning(f"DesktopAudioProvider: Playback error: {e}")
+            finally:
+                self._queue.task_done()
 
     def preload(self, sound_id: str, path: str) -> bool:
         if not os.path.exists(path):
@@ -100,7 +179,7 @@ class DesktopAudioProvider(AetherAudioBridge):
         return True
 
     def play_sound(self, sound_id: str, volume: float = 1.0, pitch: float = 1.0) -> bool:
-        if not self._available:
+        if not self._available or self._queue is None:
             return False
         path = self._sounds.get(sound_id)
         if path is None:
@@ -109,68 +188,37 @@ class DesktopAudioProvider(AetherAudioBridge):
         if not os.path.exists(path):
             logger.warning(f"DesktopAudioProvider: Sound file missing: {path}")
             return False
-        t = threading.Thread(
-            target=self._play_ogg,
-            args=(path, volume, pitch),
-            daemon=True,
-        )
-        t.start()
-        self._players.append(t)
-        return True
-
-    def _play_ogg(self, path: str, volume: float, pitch: float) -> None:
-        """Play an OGG file using PyOgg in a background thread."""
         try:
-            import pyaudio
-            pa = pyaudio.PyAudio()
-
-            opus_filename = None
-            vorbis_filename = None
-            try:
-                if self._ogg.OpusFile is not None:
-                    opus_file = self._ogg.OpusFile(path)
-                    if opus_file.is_opus:
-                        frequency = opus_file.frequency
-                        channels = opus_file.channels
-                        pcm = opus_file.as_array()
-                        opus_filename = path
-                    else:
-                        raise ValueError("Not an Opus file")
-            except Exception:
-                try:
-                    if self._ogg.VorbisFile is not None:
-                        vorbis_file = self._ogg.VorbisFile(path)
-                        frequency = vorbis_file.frequency
-                        channels = vorbis_file.channels
-                        pcm = vorbis_file.as_array()
-                        vorbis_filename = path
-                    else:
-                        raise ValueError("VorbisFile not available")
-                except Exception:
-                    logger.warning(f"DesktopAudioProvider: Cannot decode {path}")
-                    return
-
-            stream = pa.open(
-                format=pyaudio.paInt16,
-                channels=channels,
-                rate=frequency,
-                output=True,
-            )
-            stream.write(pcm.tobytes())
-            stream.stop_stream()
-            stream.close()
-            pa.terminate()
-        except ImportError:
-            logger.warning("DesktopAudioProvider: PyAudio not installed, cannot play sound")
-        except Exception as e:
-            logger.warning(f"DesktopAudioProvider: Playback error: {e}")
+            self._queue.put_nowait((sound_id, path, volume, pitch))
+            return True
+        except queue.Full:
+            logger.warning("DesktopAudioProvider: Audio queue full, dropping sound")
+            return False
 
     def stop_all(self) -> None:
-        self._players.clear()
+        if self._queue is not None:
+            while not self._queue.empty():
+                try:
+                    self._queue.get_nowait()
+                    self._queue.task_done()
+                except Exception:
+                    break
 
     def shutdown(self) -> None:
+        self._running = False
+        if self._queue is not None:
+            try:
+                self._queue.put_nowait(None)
+            except Exception:
+                pass
+        if self._worker is not None:
+            self._worker.join(timeout=2.0)
+        if self._pa is not None:
+            try:
+                self._pa.terminate()
+            except Exception:
+                pass
         self._sounds.clear()
-        self._players.clear()
 
 
 # ============================================================================
