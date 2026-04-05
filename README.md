@@ -4,7 +4,7 @@
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-360%2B%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-375%20passing-brightgreen.svg)](tests/)
 
 Aetheris UI treats user interface layout as a **dynamic physical system** governed by the laws of classical mechanics. Instead of static positioning rules, every UI element is a particle with position, velocity, and acceleration — evolving through **Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
 
@@ -21,6 +21,8 @@ The same Python physics logic drives **three native rendering pipelines**: HTML5
 - [Architecture Overview](#architecture-overview)
 - [Mathematical Foundations](#mathematical-foundations)
 - [API Reference](#api-reference)
+- [Use Cases](#use-cases)
+- [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -347,6 +349,39 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full derivations.
 ## API Reference
 
 See [docs/API_REFERENCE.md](docs/API_REFERENCE.md) for complete class and method documentation.
+
+---
+
+## Use Cases
+
+Aetheris UI excels in specific niches where physics-based transitions provide natural, organic user experiences:
+
+| # | Use Case | Industry |
+|---|----------|----------|
+| 1 | IoT Dashboard - Real-Time Sensor Monitoring | Industrial |
+| 2 | AI/ML Embedding Visualization | Data Science |
+| 3 | Financial Trading Terminals | Fintech |
+| 4 | Educational Physics Simulations | EdTech |
+| 5 | Network/Graph Topology Visualization | Analytics |
+| 6 | Game Development - 2D UI Elements | Gaming |
+| 7 | Digital Twins - Real-Time State Visualization | Manufacturing |
+| 8 | Data Exploration - Interactive Scatter Plots | Analytics |
+| 9 | Audio Visualization - Frequency Spectrum | Media |
+| 10 | Robotics - Telemetry Dashboard | Robotics |
+
+See [docs/USE_CASES.md](docs/USE_CASES.md) for complete use case documentation.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns |
+| [API_REFERENCE.md](docs/API_REFERENCE.md) | Complete API documentation |
+| [USE_CASES.md](docs/USE_CASES.md) | 15 real-world use cases |
+| [MARKET_STUDY.md](docs/MARKET_STUDY.md) | Market analysis and competitive positioning |
+| [WASM_PORTABILITY.md](docs/WASM_PORTABILITY.md) | WebAssembly deployment guide |
 
 ---
 
