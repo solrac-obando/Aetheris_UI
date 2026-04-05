@@ -308,3 +308,186 @@ Python version:              3.12+
 
 *Documento generado: Abril 2026*  
 *Análisis basado en auditoría técnica + investigación de mercado*
+
+---
+
+## 8. ANÁLISIS DE CASOS DE USO Y TENDENCIAS FUTURAS
+
+### 8.1 Uso Real Actual
+
+Aetheris UI en su estado actual **no es un producto de producción** para usuarios finales, pero tiene aplicabilidad en:
+
+| Área | Uso Actual | Viabilidad |
+|------|------------|------------|
+| **Prototipado rápido** | ✅ DEMO funcional | Alta |
+| **Investigación académica** | ✅ Visualización de física | Media |
+| **PoC (Proof of Concept)** | ✅ Demos de arquitectura | Alta |
+| **Producción comercial** | ⚠️ Requiere maduración | Baja |
+
+### 8.2 Potencial a Largo Plazo y Tendencias 2026+
+
+#### Tendencias que favorecen a Aetheris:
+
+1. **IA Generativa y Visualización de Embeddings**
+   - Modelos de lenguaje (LLMs) generan embeddings de alta dimensionalidad
+   - Necesidad de visualizar clusters de embeddings en espacio 2D/3D
+   - Aetheris puede usar física para layout natural de nodos
+
+2. **IoT y Dashboards en Tiempo Real**
+   - Sensores industriales generan flujos constantes de datos
+   - Transiciones físicas para estados cambiantes (alertas visuales)
+   - Diferenciador: UI que "reacciona" físicamente a datos
+
+3. **EdTech y Simulaciones Educativas**
+   - Demanda creciente de laboratorios virtuales STEM
+   - Física interactiva para enseñar conceptos científicos
+   - Aetheris como motor de simulaciones educativas
+
+4. **Digital Twins (Gemelos Digitales)**
+   - Réplicas virtuales de sistemas físicos
+   - Visualización en tiempo real de estados
+   - UI reactiva basada en física para monitoreo
+
+---
+
+### 8.3 Aplicación en Simulaciones y Pruebas Automatizadas
+
+#### Simulaciones:
+
+| Tipo de Simulación | Aetheris puede contribuir | Comentario |
+|--------------------|--------------------------|-------------|
+| **Física de cuerpos** | ⚠️ Limitado | Solo 2D, sin colisiones complejas |
+| **Fluidos** | ❌ No aplica | Requiere solvers especializados |
+| **Redes/Grafos** | ✅ Alto | Layout físico de nodos es ideal |
+| **Sistemas complejos** | ✅ Medio | Transiciones state-based visuales |
+| **Monte Carlo** | ✅ Medio | Visualización de distribuciones |
+
+**Conclusión:** Aetheris NO es un simulador de física general. Es un **framework de UI que usa física para transiciones**. Para simulaciones reales (PyBullet, MuJoCo, Gazebo), se usaría bridge de visualización.
+
+#### Pruebas Automatizadas:
+
+| Capacidad | Soporte Actual | Mejora Necesaria |
+|-----------|----------------|------------------|
+| **Headless testing** | ✅ MockRenderer disponible | - |
+| **Visual regression** | ⚠️ Manual | Necesita captura automática |
+| **Performance profiling** | ✅ test_performance_gatekeeper.py | Expandir |
+| **Stress testing** | ✅ test_parallel_scaling.py | - |
+| **CI/CD integration** | ✅ GitHub Actions config | - |
+
+Aetheris es **adecuado para testing de UI automatizado** pero NO para testing de simulaciones físicas (，那里 se usaría frameworks especializados).
+
+---
+
+### 8.4 Aplicación en Robótica
+
+#### Análisis: ¿Aetheris es útil para robóticas?
+
+**Respuesta corta:** No directamente, pero sí como **capa de visualización**.
+
+| Componente Robótico | Aetheris aplica? | Alternativa mejor |
+|---------------------|------------------|-------------------|
+| **Simulación física** | ❌ | PyBullet, MuJoCo, Gazebo |
+| **Control de motores** | ❌ | ROS, pyrobosim |
+| **Percepción/Visión** | ❌ | OpenCV, ROS |
+| **Interfaz HMI (Human-Machine)** | ✅ | Aplicable para dashboards |
+| **Visualización de estado** | ✅ | Muy útil para debug |
+| **Teleoperación UI** | ✅ | Paneles de control |
+
+#### Integración con ROS/ROS2:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ARQUITECTURA ROBÓTICA                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│   [Robot/Sensor] ──► [ROS2/ROS] ──► [Aetheris UI]             │
+│                           │              │                      │
+│                    ┌──────┴──────┐       │                      │
+│                    │ pyrobosim   │       │                      │
+│                    │ PyBullet    │       │                      │
+│                    │ Gazebo      │       │                      │
+│                    └─────────────┘       │                      │
+│                                         ▼                      │
+│                              ┌─────────────────────┐            │
+│                              │ Dashboard UI con   │            │
+│                              │ transiciones       │            │
+│                              │ físicas en tiempo  │            │
+│                              │ real               │            │
+│                              └─────────────────────┘            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Caso de uso real:**
+- Mostrar posición de robot en tiempo real
+- Visualizar trayectorias planificadas
+- Dashboard de telemetría (velocidad, batería, sensores)
+- Alertas visuales basadas en umbrales físicos
+
+#### Frameworks robóticos compatibles:
+
+| Framework | Compatibilidad | Notas |
+|-----------|---------------|-------|
+| **ROS 2** | ✅ Posible | Bridge Python → Aetheris |
+| **pyrobosim** | ✅ Posible | Integración de visualización |
+| **PyBullet** | ✅ Posible | Como viewer dedebug |
+| **Gazebo** | ⚠️ Limitado | Gazebo tiene su propio renderer |
+| **Isaac Sim (NVIDIA)** | ❌ No compatible | Usa Qt + proprietary |
+
+---
+
+### 8.5 Resumen: ¿Para qué SÍ y para qué NO sirve Aetheris?
+
+#### ✅ USOS ADECUADOS:
+
+1. **Dashboard de visualización de datos**
+   - IoT, machine learning, telemetría
+   - Transiciones físicas para estados cambiantes
+
+2. **Visualización de grafos/redes**
+   - Layout automático de nodos mediante fuerzas
+   - Alternativa a D3.js para Python
+
+3. **Prototipado de interfaces innovadoras**
+   - UI experimental con física
+   - Diferenciador visual para demos
+
+4. **EdTech - Simulaciones educativas**
+   - Laboratorios virtuales de física básica
+   - Visualización interactiva de conceptos
+
+5. **Capa de visualización para robóticas**
+   - Dashboard de telemetría
+   - Debug visual de estados
+
+#### ❌ USOS INADECUADOS:
+
+1. **Simulación de física detallada**
+   - Usar: PyBullet, MuJoCo, ODE, Box2D
+
+2. **Aplicaciones de producción general**
+   - Usar: PyQt6, Kivy, Tkinter
+
+3. **Desarrollo web comercial**
+   - Usar: React, Vue, Angular
+
+4. **Aplicaciones móviles de consumo**
+   - Usar: Flutter, React Native, Swift/Kotlin
+
+5. **Videojuegos**
+   - Usar: Godot, Unity, Pygame
+
+---
+
+### 8.6 Visión a Futuro (3-5 años)
+
+| Horizonte | Evolución esperada |
+|-----------|---------------------|
+| **1 año** | Maduración del core, docs, ejemplos |
+| **2 años** | Integración con ecosystem de IA (LangChain viz) |
+| **3 años** | Plugin para ROS/ROS2 como visualizador |
+| **5 años** | Estándar de facto para "physics-driven dashboards" |
+
+---
+
+*Sección aggiornada: Abril 2026*
