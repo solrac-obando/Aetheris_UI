@@ -186,4 +186,5 @@ This approach creates **organic, natural transitions** that respond to user inte
 ---
 
 *Document generated: Abril 2026*
+*Licensed under Apache License 2.0*
 *Part of Aetheris UI official documentation*

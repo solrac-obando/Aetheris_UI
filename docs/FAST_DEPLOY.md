@@ -181,4 +181,4 @@ pytest tests/ -v -k titan # Solo pruebas Titan
 
 ---
 
-*© 2026 Carlos Ivan Obando Aure — MIT License*
+*© 2026 Carlos Ivan Obando Aure — Licensed under Apache License 2.0*
