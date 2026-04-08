@@ -184,8 +184,14 @@ class LightWASMAdapter:
             ):
                 continue
 
+            if abs(x) > 1e10 or abs(y) > 1e10 or abs(w) > 1e10 or abs(h) > 1e10:
+                continue
+
             x = max(0.0, min(x, self._container_w - w))
             y = max(0.0, min(y, self._container_h - h))
+
+            if abs(x) > 1e9 or abs(y) > 1e9 or abs(w) > 1e9 or abs(h) > 1e9:
+                continue
 
             payload["elements"].append({
                 "id": html_id,
