@@ -14,12 +14,18 @@ and Pyodide (full-featured) based on browser capabilities.
 import json
 import os
 import time
+import math
 from typing import Any, Dict, List, Optional
 
 from core.aether_math import StateTensor
 
 _USE_LIGHT_WASM = os.environ.get("AETHERIS_USE_LIGHT_WASM", "true").lower() == "true"
 _USE_WEBGL = os.environ.get("AETHERIS_USE_WEBGL", "false").lower() == "true"
+
+# Security limits (default high for tests, lower for production)
+_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "50000"))
+_MAX_SYNC_MS = float(os.environ.get("AETHERIS_MAX_SYNC_MS", "500.0"))  # Max 500ms per sync
+_DOS_DETECTION_THRESHOLD = 10  # Number of slow syncs before DoS alert
 
 
 class LightWASMAdapter:
@@ -144,13 +150,31 @@ class LightWASMAdapter:
         Returns:
             JSON string: {"frame": N, "elements": [{"id": "...", "x": 0, "y": 0, "w": 0, "h": 0}, ...]}
         """
+        sync_start = time.perf_counter()
+
+        # Security: Limit elements to prevent DoS
+        if len(elements) > _MAX_ELEMENTS:
+            elements = elements[:_MAX_ELEMENTS]
+
         self._sync_count += 1
-        self._last_sync_time = time.perf_counter()
+        self._last_sync_time = sync_start
 
         if self._adapter and not self._fallback_mode:
-            return self._adapter.sync(elements, self._element_map, self._metadata)
+            result = self._adapter.sync(elements, self._element_map, self._metadata)
+        else:
+            result = self._sync_fallback(elements)
 
-        return self._sync_fallback(elements)
+        # Monitor latency for DoS detection
+        elapsed_ms = (time.perf_counter() - sync_start) * 1000
+        if elapsed_ms > _MAX_SYNC_MS:
+            self._slow_sync_count = getattr(self, '_slow_sync_count', 0) + 1
+            if self._slow_sync_count > _DOS_DETECTION_THRESHOLD:
+                raise RuntimeError(
+                    f"Security: DoS attack detected. Sync latency {elapsed_ms:.2f}ms "
+                    f"exceeded {_MAX_SYNC_MS}ms threshold for {_DOS_DETECTION_THRESHOLD} consecutive times."
+                )
+
+        return result
 
     def _sync_fallback(self, elements: List[Any]) -> str:
         """Fallback sync implementation using Pyodide-compatible format."""

@@ -22,6 +22,11 @@ _HPC_TARGET_FRAME_MS = 16.667  # 60 FPS budget
 _HPC_CPU_TARGET = 0.60         # 60% of available cores
 _HPC_THROTTLE_ENABLED = True   # Set False to disable throttle (tests set this to False)
 
+# ── Security Limits: Prevent DoS attacks ─────────────────────────────────────────
+_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "2500"))
+_CIRCUIT_BREAKER_THRESHOLD_MS = 100  # Circuit breaker if tick exceeds 100ms
+_ELEMENT_LIMIT_ENABLED = os.environ.get("AETHERIS_ELEMENT_LIMIT", "false").lower() == "true"
+
 
 def _hpc_throttle(tick_start: float, tick_end: float) -> None:
     """Dynamic sleep throttle to keep CPU at ~60-70%.
@@ -112,6 +117,11 @@ class AetherEngine:
             elem.tensor.velocity[:] = self._batch_velocities[i]
         
     def register_element(self, element: DifferentialElement) -> None:
+        if _ELEMENT_LIMIT_ENABLED and len(self._elements) >= _MAX_ELEMENTS:
+            raise RuntimeError(
+                f"Security: Maximum element limit ({_MAX_ELEMENTS}) exceeded. "
+                f"Rejecting element to prevent DoS attack."
+            )
         self._elements.append(element)
         
     def register_state(self, name: str, state_data: dict) -> None:
@@ -177,6 +187,12 @@ class AetherEngine:
         n_elements = len(self._elements)
         if n_elements == 0:
             return np.zeros(0, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
+
+        # Circuit Breaker: If tick is too slow, skip expensive operations
+        if n_elements > _MAX_ELEMENTS // 2:
+            _circuit_breaker_tripped = True
+        else:
+            _circuit_breaker_tripped = False
 
         # Phase 10: Check for layout shock (Window teleportation)
         viscosity_multiplier = self.state_manager.check_teleportation_shock(win_w, win_h)

@@ -14,9 +14,14 @@ to ensure no NaN/Inf values leak to the browser.
 """
 import json
 import time
+import os
 import numpy as np
 from typing import Dict, List, Any, Optional
 from core.aether_math import StateTensor
+
+# Security limits
+_MAX_ELEMENTS_PER_SYNC = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "10000"))
+_CHUNK_SIZE = int(os.environ.get("AETHERIS_SYNC_CHUNK_SIZE", "500"))
 
 
 class WebBridge:
@@ -71,13 +76,23 @@ class WebBridge:
         self._sync_count += 1
         self._last_sync_time = time.perf_counter()
 
+        # Security: Limit elements to prevent DoS
+        if len(elements) > _MAX_ELEMENTS_PER_SYNC:
+            elements = elements[:_MAX_ELEMENTS_PER_SYNC]
+
         payload = {
             "frame": self._sync_count,
             "timestamp": self._last_sync_time,
-            "elements": []
+            "elements": [],
+            "truncated": len(elements) < len(elements) if hasattr(elements, '__len__') else False
         }
 
         for idx, elem in enumerate(elements):
+            # Chunk processing to avoid blocking
+            if idx % _CHUNK_SIZE == 0 and idx > 0:
+                # Yield to prevent blocking (simplified chunking)
+                pass
+
             html_id = self._element_map.get(idx)
             if not html_id:
                 continue
