@@ -19,8 +19,15 @@ import numpy as np
 from typing import Dict, List, Any, Optional
 from core.aether_math import StateTensor
 
+# Dynamic limits based on hardware
+try:
+    from core.dynamic_limits import get_bridge_limit_from_engine, _SYSTEM_PROFILE
+    _DEFAULT_BRIDGE_LIMIT = _SYSTEM_PROFILE["bridge_limit"]
+except ImportError:
+    _DEFAULT_BRIDGE_LIMIT = int(os.environ.get("AETHERIS_MAX_SYNC_ELEMENTS", "12000"))
+
 # Security limits
-_MAX_ELEMENTS_PER_SYNC = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "10000"))
+_MAX_ELEMENTS_PER_SYNC = int(os.environ.get("AETHERIS_MAX_SYNC_ELEMENTS", str(_DEFAULT_BRIDGE_LIMIT)))
 _CHUNK_SIZE = int(os.environ.get("AETHERIS_SYNC_CHUNK_SIZE", "500"))
 
 

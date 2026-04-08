@@ -22,8 +22,20 @@ _HPC_TARGET_FRAME_MS = 16.667  # 60 FPS budget
 _HPC_CPU_TARGET = 0.60         # 60% of available cores
 _HPC_THROTTLE_ENABLED = True   # Set False to disable throttle (tests set this to False)
 
+# ── Dynamic Limits: Auto-detect based on hardware ─────────────────────────
+try:
+    from core.dynamic_limits import get_optimal_max_elements, get_system_profile
+    _SYSTEM_PROFILE = get_system_profile()
+    _DEFAULT_MAX_ELEMENTS = _SYSTEM_PROFILE["engine_limit"]
+    _IS_SAFETY_MODE = _SYSTEM_PROFILE["safety_mode"]
+    _IS_PERFORMANCE_MODE = _SYSTEM_PROFILE["performance_mode"]
+except ImportError:
+    _DEFAULT_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "4000"))
+    _IS_SAFETY_MODE = False
+    _IS_PERFORMANCE_MODE = False
+
 # ── Security Limits: Prevent DoS attacks ─────────────────────────────────────────
-_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "2500"))
+_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", str(_DEFAULT_MAX_ELEMENTS)))
 _CIRCUIT_BREAKER_THRESHOLD_MS = 100  # Circuit breaker if tick exceeds 100ms
 _ELEMENT_LIMIT_ENABLED = os.environ.get("AETHERIS_ELEMENT_LIMIT", "false").lower() == "true"
 

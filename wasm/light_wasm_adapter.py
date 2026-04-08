@@ -22,8 +22,16 @@ from core.aether_math import StateTensor
 _USE_LIGHT_WASM = os.environ.get("AETHERIS_USE_LIGHT_WASM", "true").lower() == "true"
 _USE_WEBGL = os.environ.get("AETHERIS_USE_WEBGL", "false").lower() == "true"
 
+# Dynamic limits based on hardware
+try:
+    from core.dynamic_limits import get_optimal_max_elements, get_system_profile
+    _SYSTEM_PROFILE = get_system_profile()
+    _DEFAULT_MAX_ELEMENTS = _SYSTEM_PROFILE["bridge_limit"]
+except ImportError:
+    _DEFAULT_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "20000"))
+
 # Security limits (default high for tests, lower for production)
-_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "50000"))
+_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", str(_DEFAULT_MAX_ELEMENTS)))
 _MAX_SYNC_MS = float(os.environ.get("AETHERIS_MAX_SYNC_MS", "500.0"))  # Max 500ms per sync
 _DOS_DETECTION_THRESHOLD = 10  # Number of slow syncs before DoS alert
 
