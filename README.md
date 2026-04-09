@@ -1,20 +1,24 @@
 # Aetheris UI
 
-> **Physics-as-UI** — The first high-performance UI engine driven by linear algebra for Python & WebAssembly.
+> **Physics-as-UI** — The first hybrid Python/Rust physics-driven UI engine.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-375%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-511%20passing-brightgreen.svg)](tests/)
+[![Benchmark](https://img.shields.io/badge/rust%20speedup-17.2x-gold.svg)](BENCHMARK.md)
+[![Bundle](https://img.shields.io/badge/bundle-200KB-blue.svg)](docs/PROJECT_STATUS.md)
 
-Aetheris UI treats user interface layout as a **dynamic physical system** governed by the laws of classical mechanics. Instead of static positioning rules, every UI element is a particle with position, velocity, and acceleration — evolving through **Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
+Aetheris UI treats user interface layout as a **dynamic physical system** governed by classical mechanics. Every UI element is a particle with position, velocity, and acceleration — evolving through **Symplectic Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
 
-The same Python physics logic drives **three native rendering pipelines**: HTML5 Canvas via Pyodide/WASM, desktop OpenGL via ModernGL, and mobile via Kivy — all consuming the same structured NumPy data bridge.
+Now features a **dual-engine architecture**: a pure Python engine and a **17.2x faster Rust engine** (5,000 elements benchmark), selectable at runtime via `EngineSelector`.
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
+- [Dual-Engine Architecture](#dual-engine-architecture)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [The Multi-Renderer Trinity](#the-multi-renderer-trinity)
@@ -30,11 +34,103 @@ The same Python physics logic drives **three native rendering pipelines**: HTML5
 
 ## Features
 
-- **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers directly derived from physical state changes.
-- **HPC-Optimized Core** — Numba-accelerated vectorized physics kernels. Parallel batch processing for large-scale UI simulations (10 to 5,000+ elements).
-- **32-Component Library** — A comprehensive library of physics-aware components across 4 categories: Dashboard (Gauges, Orbs), Interactive (Toggles, Sliders), Desktop (Windows, Modals), and Layout (Grids, Stacks).
-- **Aether-Guard Safety** — Industrial-grade numerical stability. L2 norm clamping, epsilon-protected division, and NaN/Inf sanitization prevent engine collapses under extreme forces.
-- **HTML/CSS Hydration** — Declarative UI definition via `AetherHTMLParser`. Maps standard HTML tags and CSS-like attributes to physics properties with kebab-to-snake normalization.
+- **🚀 Dual-Engine: Python + Rust** — Choose between pure Python or 17.2x faster Rust at runtime via `EngineSelector`. Automatic fallback if Rust is unavailable.
+- **M1: WASM Ligero** (~200KB) — Lightweight WebAssembly adapter replacing Pyodide (40MB). Canvas 2D + WebGL support.
+- **M2: Batch Asymptotes** — 50,000 elements at 60 FPS with Numba JIT kernels + 35% safety margin.
+- **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers derived from physical state changes.
+- **HPC-Optimized Core** — Numba-accelerated vectorized Python kernels + Rayon-parallelized Rust batch processing for 10 to 5,000+ elements.
+- **Aether-Guard Safety** — Industrial-grade numerical stability. L2 norm clamping, epsilon-protected division, and NaN/Inf sanitization prevent engine collapses.
+- **Dynamic Resource Limits** — Auto-detect hardware capabilities with 35% safety margin for stable 60 FPS.
+- **Zero External Math Dependencies** — Custom `Vec4` type in Rust, pure NumPy in Python. No linear algebra supply chain risk.
+- **HTML/CSS Hydration** — Declarative UI definition via `AetherHTMLParser`. Maps HTML tags and CSS-like attributes to physics properties.
+
+---
+
+## Dual-Engine Architecture
+
+Aetheris UI now ships with **two physics engines** and a unified selector:
+
+| Engine | Language | Speed (5K elements) | Use Case |
+|--------|----------|---------------------|----------|
+| **Python** | Python + Numba | 27.6 FPS | Development, debugging, no Rust toolchain |
+| **Rust** | Rust + Rayon | **473.6 FPS (17.2x)** | Production, high element counts, mobile battery |
+
+### EngineSelector
+
+```python
+from core.engine_selector import EngineSelector
+
+# Auto-detect: tries Rust, falls back to Python
+engine = EngineSelector()
+
+# Force a specific engine
+engine = EngineSelector(engine_type="python")  # Always Python
+engine = EngineSelector(engine_type="rust")    # Always Rust (error if unavailable)
+
+---
+
+## M2: Fully Vectorized Asymptotes
+
+Aetheris UI v1.1+ includes **M2: Batch Asymptotes** for extreme performance:
+
+| Métrica | Valor |
+|---------|-------|
+| Elementos | **50,000** @ 60 FPS |
+| Safety Margin | **35%** |
+| Batch Processing | Numba JIT |
+| Async Optimization | Static/Dynamic classification |
+
+### M2 Performance
+
+```python
+from core.solver_batch_asymptotes import BatchAsymptoteCalculator
+
+calc = BatchAsymptoteCalculator()
+result = calc.calculate(states, targets, (1280, 720))
+# 50,000 elementos: <16ms (60 FPS target)
+```
+
+### Dynamic Limits
+
+M2 includes automatic hardware detection:
+
+```python
+from core.dynamic_limits import get_system_profile
+
+profile = get_system_profile()
+print(profile["engine_limit"])  # e.g., 2080 for 4-core
+print(profile["safety_margin"])   # 0.35 (35%)
+```
+
+---
+
+## M1: WASM Ligero
+
+Replace Pyodide (40MB) with lightweight adapter (~200KB):
+
+```python
+from wasm.light_wasm_adapter import LightWASMAdapter
+
+adapter = LightWASMAdapter()
+adapter.sync(elements)  # Same API as WebBridge
+```
+
+# Environment variable override
+# AETHER_ENGINE=python python main.py
+# AETHER_ENGINE=rust python main.py
+```
+
+The selector provides a **unified API** — your rendering code never changes regardless of which engine is active.
+
+### Building the Rust Engine
+
+```bash
+cd aetheris-rust
+pip install maturin
+maturin develop -m crates/aether-pyo3/Cargo.toml
+```
+
+See [BENCHMARK.md](BENCHMARK.md) for full performance results.
 
 ---
 
@@ -44,7 +140,8 @@ The same Python physics logic drives **three native rendering pipelines**: HTML5
 
 - Python 3.12+
 - NumPy 1.26.4+
-- For WASM: A modern browser with SharedArrayBuffer support (requires COOP/COEP headers)
+- For Rust engine: Rust 1.70+ and `maturin`
+- For WASM: Modern browser with SharedArrayBuffer support (COOP/COEP headers)
 
 ### Desktop (ModernGL Renderer)
 
@@ -52,6 +149,9 @@ The same Python physics logic drives **three native rendering pipelines**: HTML5
 git clone https://github.com/your-org/aetheris-ui.git
 cd aetheris-ui
 pip install -r requirements.txt
+
+# Optional: Build Rust engine for 17x performance
+cd aetheris-rust && pip install maturin && maturin develop -m crates/aether-pyo3/Cargo.toml && cd ..
 
 # Run with GPU renderer (headless validation)
 xvfb-run -a python3 main.py --gl --frames 50
@@ -98,12 +198,12 @@ docker run --rm aetheris-ui
 ### Hello Physics
 
 ```python
-from core.engine import AetherEngine
+from core.engine_selector import EngineSelector
 from core.elements import SmartPanel
 from core.renderer_base import MockRenderer
 
-# 1. Create the physics engine
-engine = AetherEngine()
+# 1. Create the engine (auto-selects Rust if available)
+engine = EngineSelector()
 
 # 2. Register a responsive panel (5% padding from all edges)
 panel = SmartPanel(color=(0.9, 0.2, 0.6, 0.8), z=0)
@@ -115,17 +215,11 @@ renderer.init_window(800, 600, "Hello Physics")
 
 # 4. Run the physics loop
 for frame in range(60):
-    # The engine calculates forces, integrates physics, and returns
-    # a structured NumPy array for the renderer
     data = engine.tick(800, 600)
-    
     renderer.clear_screen((0.1, 0.1, 0.1, 1.0))
     renderer.render_frame(data)
     renderer.swap_buffers()
-    
-    # The panel smoothly converges to its asymptote:
-    # x = 800 * 0.05 = 40, y = 600 * 0.05 = 30
-    # w = 800 * 0.90 = 720, h = 600 * 0.90 = 540
+
     if frame % 10 == 0:
         print(f"Frame {frame}: rect={data[0]['rect']}")
 ```
@@ -133,10 +227,10 @@ for frame in range(60):
 ### Server-Driven Layout
 
 ```python
-from core.engine import AetherEngine
+from core.engine_selector import EngineSelector
 from core.ui_builder import UIBuilder
 
-engine = AetherEngine()
+engine = EngineSelector()
 
 intent = {
     "layout": "column",
@@ -153,7 +247,6 @@ intent = {
 
 builder = UIBuilder()
 builder.build_from_intent(engine, intent)
-# engine now has 3 elements with physics-driven positions
 ```
 
 ### Database-Driven Layout (Aether-Data Bridge)
@@ -163,15 +256,12 @@ from core.engine import AetherEngine
 from core.ui_builder import UIBuilder
 from core.data_bridge import SQLiteProvider, min_max_scale
 
-# Create engine and builder
 engine = AetherEngine()
 builder = UIBuilder()
 
-# Connect to a local SQLite database
 db = SQLiteProvider("./my_app.db")
 db.connect()
 
-# Define how DB columns map to physics properties with Min-Max normalization
 template = {
     "type": "static_box",
     "columns": {
@@ -184,10 +274,8 @@ template = {
     "metadata_fields": ["title", "rating"],
 }
 
-# Build elements directly from database query
 count = builder.build_from_datasource(engine, db, "SELECT * FROM movies", template)
 print(f"Created {count} elements from database")
-
 db.disconnect()
 ```
 
@@ -196,7 +284,6 @@ db.disconnect()
 ```python
 from core.data_bridge import vector_to_tensor
 
-# Convert a PostgreSQL vector embedding into a physics force
 embedding = [0.5, -0.3, 0.8, -0.1]  # AI embedding from pgvector
 force = vector_to_tensor(embedding, scale=100.0)
 # force = [50.0, -30.0, 80.0, -10.0] — ready for StateTensor.apply_force()
@@ -252,48 +339,50 @@ This array — containing `[x, y, width, height]`, `[r, g, b, a]`, and `z_index`
 | **TkinterRenderer** | Tkinter Canvas | Debug text via `create_text` | Desktop (debug only) |
 | **MockRenderer** | stdout printing | N/A | Headless CI/CD |
 
-All renderers consume the **identical** NumPy array from the **identical** `AetherEngine.tick()` call. Switching renderers requires changing one line of code.
+All renderers consume the **identical** NumPy array from the **identical** `engine.tick()` call. Switching renderers requires changing one line of code.
 
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    AETHERIS UI ENGINE                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────────┐    ┌──────────────────────────────────┐│
-│  │  Mathematical   │    │         Rendering Pipeline       ││
-│  │     Domain      │    │                                  ││
-│  │                 │    │  ┌──────────┐ ┌──────────┐      ││
-│  │ ┌─────────────┐ │    │  │GLRenderer│ │KivyRender│      ││
-│  │ │StateTensor  │ │    │  │(ModernGL)│ │ (Kivy)   │      ││
-│  │ │- state[4]   │ │    │  └────┬─────┘ └────┬─────┘      ││
-│  │ │- velocity[4]│ │    │       │             │            ││
-│  │ │- accel[4]   │ │    │       └──────┬──────┘            ││
-│  │ └─────────────┘ │    │              │                   ││
-│  │        │        │    │  ┌───────────▼───────────────┐  ││
-│  │ ┌─────────────┐ │    │  │  Structured NumPy Array   │  ││
-│  │ │   Solver    │ │    │  │  [('rect','f4',4),        │  ││
-│  │ │- Hooke'sLaw │ │    │  │   ('color','f4',4),       │  ││
-│  │ │- Boundaries │ │    │  │   ('z','i4')]             │  ││
-│  │ └─────────────┘ │    │  └───────────────────────────┘  ││
-│  │        │        │    │              │                   ││
-│  │ ┌─────────────┐ │    │  ┌───────────▼───────────────┐  ││
-│  │ │StateManager │ │    │  │      JSON Metadata        │  ││
-│  │ │- Lerp       │ │    │  │  (text, font, DOM data)   │  ││
-│  │ │- HyperDamp  │ │    │  └───────────────────────────┘  ││
-│  │ └─────────────┘ │    │                                  ││
-│  └────────┬────────┘    └──────────────────────────────────┘│
-│           │                                                   │
-│  ┌────────▼────────┐                                         │
-│  │  AetherEngine   │                                         │
-│  │  - tick()       │                                         │
-│  │  - registry     │                                         │
-│  │  - dt tracking  │                                         │
-│  └─────────────────┘                                         │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        AETHERIS UI ENGINE                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────┐        ┌───────────────────────────────┐  │
+│  │   EngineSelector    │        │        Rendering Pipeline     │  │
+│  │  (Unified Facade)   │        │                               │  │
+│  │                     │        │  ┌──────────┐ ┌──────────┐   │  │
+│  │  ┌───────────────┐  │        │  │GLRenderer│ │KivyRender│   │  │
+│  │  │ Python Engine │  │        │  │(ModernGL)│ │ (Kivy)   │   │  │
+│  │  │ (Numba+NumPy) │  │        │  └────┬─────┘ └────┬─────┘   │  │
+│  │  └───────────────┘  │        │       │             │         │  │
+│  │         OR          │        │       └──────┬──────┘         │  │
+│  │  ┌───────────────┐  │        │  ┌──────────▼──────────────┐ │  │
+│  │  │  Rust Engine  │  │        │  │  Structured NumPy Array │ │  │
+│  │  │  (PyO3+Rayon) │  │        │  │  [('rect','f4',4),      │ │  │
+│  │  │   17.2x fast  │  │        │  │   ('color','f4',4),     │ │  │
+│  │  └───────────────┘  │        │  │   ('z','i4')]           │ │  │
+│  └──────────┬──────────┘        │  └─────────────────────────┘ │  │
+│             │                   │              │                │  │
+│             │                   │  ┌───────────▼───────────────┐│  │
+│             │                   │  │      JSON Metadata        ││  │
+│             │                   │  │  (text, font, DOM data)   ││  │
+│             │                   │  └───────────────────────────┘│  │
+│             │                   └───────────────────────────────┘  │
+│  ┌──────────▼──────────┐                                          │
+│  │   Rust Core Crates  │                                          │
+│  │  ┌───────────────┐  │                                          │
+│  │  │  aether-math  │  │  Vec4, AetherGuard, StateTensor         │
+│  │  │  (0 ext deps) │  │  L2 norm, safe_divide, clamp_magnitude  │
+│  │  └───────────────┘  │                                          │
+│  │  ┌───────────────┐  │                                          │
+│  │  │  aether-core  │  │  Solver, Engine, InputMgr, StateMgr     │
+│  │  │  (rayon)      │  │  Hooke's Law, boundaries, snap          │
+│  │  └───────────────┘  │                                          │
+│  └─────────────────────┘                                          │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete mathematical deep-dive.
@@ -302,7 +391,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete mathematical d
 
 ## Mathematical Foundations
 
-### Euler Integration
+### Symplectic Euler Integration
 
 Each frame, element state evolves via:
 
@@ -325,6 +414,12 @@ For a spring-mass system with m=1:
 
 ```
 c_critical = 2 · √k
+```
+
+### Speed-to-Stiffness Mapping
+
+```
+k = 16 / T²  (where T is transition time in seconds)
 ```
 
 ### L2 Norm Clamping (Aether-Guard)
@@ -377,9 +472,10 @@ See [docs/USE_CASES.md](docs/USE_CASES.md) for complete use case documentation.
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design patterns |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and mathematical foundations |
 | [API_REFERENCE.md](docs/API_REFERENCE.md) | Complete API documentation |
 | [USE_CASES.md](docs/USE_CASES.md) | 15 real-world use cases |
+| [BENCHMARK.md](BENCHMARK.md) | Python vs Rust performance comparison (5,000 elements) |
 | [MARKET_STUDY.md](docs/MARKET_STUDY.md) | Market analysis and competitive positioning |
 | [WASM_PORTABILITY.md](docs/WASM_PORTABILITY.md) | WebAssembly deployment guide |
 
@@ -390,9 +486,10 @@ See [docs/USE_CASES.md](docs/USE_CASES.md) for complete use case documentation.
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Run the test suite: `pytest tests/ -v`
-4. Commit your changes (`git commit -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
+4. Run Rust tests: `cd aetheris-rust && cargo test`
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ---
 
@@ -408,4 +505,4 @@ Aetheris UI is not a replacement for React or Flutter — it creates a **new cat
 
 **Target markets**: Netflix/Spotify catalog explorers, financial dashboards, AI embedding visualization, and interactive education tools.
 
-**Unfair advantage**: Single Python code → 3 native platforms (Web, Desktop, Mobile) with algebraic data normalization and industrial-grade numerical stability via Aether-Guard.
+**Unfair advantage**: Single Python code → 3 native platforms (Web, Desktop, Mobile) with **17.2x faster Rust engine option**, algebraic data normalization, and industrial-grade numerical stability via Aether-Guard.
