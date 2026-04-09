@@ -40,23 +40,24 @@
 
 ### BLOQUE 1: CRÍTICAS (Alta Prioridad, Alta Dificultad)
 
-| # | Mejora | Dificultad | Impacto | Oportunidades que Abre |
-|---|--------|------------|---------|------------------------|
-| **M1** | **WASM Ligero (reemplazar Pyodide)** | 🔴 Alta | ⚡⚡⚡ | Web comercial, PWA installable, reducción de 40MB a <1MB. Abre: mercado web corporativo, apps SaaS |
-| **M2** | **Fully Vectorized Asymptotes** | 🔴 Alta | ⚡⚡⚡ | 100,000 elementos a 60 FPS. Abre: dashboards IoT masivos, visualización de datos en tiempo real |
-| **M3** | **Entity Component System (ECS)** | 🔴 Alta | ⚡⚡ | Reemplazar jerarquía OOP por arrays flat. Abre: cache locality, paralelismo real, 10x throughput |
-| **M4** | **Optimización CPU (eliminar GIL)** | 🔴 Alta | ⚡⚡⚡ | Eliminación del overhead de Python. Abre: 50,000+ elementos sin pérdida de FPS |
+| # | Mejora | Dificultad | Impacto | Oportunidades que Abre | Estado |
+|---|--------|------------|---------|------------------------|--------|
+| **M1** | **WASM Ligero (reemplazar Pyodide)** | 🔴 Alta | ⚡⚡⚡ | Web comercial, PWA installable, reducción de 40MB a <1MB. Abre: mercado web corporativo, apps SaaS | ✅ Completado |
+| **M2** | **Fully Vectorized Asymptotes** | 🔴 Alta | ⚡⚡⚡ | 100,000 elementos a 60 FPS. Abre: dashboards IoT masivos, visualización de datos en tiempo real | ✅ Completado |
+| **M3** | **Entity Component System (ECS)** | 🔴 Alta | ⚡⚡ | Reemplazar jerarquía OOP por arrays flat. Abre: cache locality, paralelismo real, 10x throughput | ⏳ Pendiente |
+
+> **Nota**: M4 (Eliminar GIL) fue descartada - la arquitectura actual con Numba y vectorización es suficiente para competir en el mercado global.
 
 ---
 
 ### BLOQUE 2: ESTRATÉGICAS (Alta Prioridad, Media Dificultad)
 
-| # | Mejora | Dificultad | Impacto | Oportunidades que Abre |
-|---|--------|------------|---------|------------------------|
-| **M5** | **Layout Declarativo de Alto Nivel** | 🟠 Media | 🎯🎯 | DSL para definir UIs físicas sin cálculos manuales. Abre: adopción por developers no-físicos, competencia con React |
-| **M6** | **Sistema de Lifecycle (dispose())** | 🟠 Media | ⚡ | Gestión explícita de recursos, prevención de memory leaks. Abre: apps de larga duración, producción |
-| **M7** | **Soporte para Pantallas Táctiles** | 🟠 Media | 🎯🎯 | Física de inercia multifingers para iPad/Android. Abre: mercado mobile enterprise, kioskos |
-| **M8** | **Tipado Estático (mypy/dataclasses)** | 🟠 Media | 🎯🎯 | Type safety, autocompletado en IDE. Abre: contribución open-source, corporativa |
+| # | Mejora | Dificultad | Impacto | Oportunidades que Abre | Estado |
+|---|--------|------------|---------|------------------------|--------|
+| **M5** | **Layout Declarativo de Alto Nivel** | 🟠 Media | 🎯🎯 | DSL para definir UIs físicas sin cálculos manuales. Abre: adopción por developers no-físicos, competencia con React | ✅ Completado |
+| **M6** | **Sistema de Lifecycle (dispose())** | 🟠 Media | ⚡ | Gestión explícita de recursos, prevención de memory leaks. Abre: apps de larga duración, producción | ✅ Completado |
+| **M7** | **Soporte para Pantallas Táctiles** | 🟠 Media | 🎯🎯 | Física de inercia multifingers para iPad/Android. Abre: mercado mobile enterprise, kioskos | ⏳ Pendiente |
+| **M8** | **Tipado Estático (mypy/dataclasses)** | 🟠 Media | 🎯🎯 | Type safety, autocompletado en IDE. Abre: contribución open-source, corporativa | ⏳ Pendiente |
 
 ---
 
@@ -83,6 +84,21 @@
 
 ## 🎯 MATRIZ: DIFICULTAD vs PRIORIDAD
 
+```
+                    │  BAJA DIFICULTAD  │  MEDIA DIFICULTAD  │  ALTA DIFICULTAD  │
+───────────────────┼───────────────────┼────────────────────┼───────────────────┤
+🔴 ALTA PRIORIDAD   │      M8, M13      │    M5, M6, M7      │    M1, M2, M3     │
+(hoy/mismo año)     │   Typing, VSCode  │  Layout, Lifecycle │  WASM, Vectorized │
+                    │                   │      Touch          │      ECS           │
+───────────────────┼───────────────────┼────────────────────┼───────────────────┤
+🟠 MEDIA PRIORIDAD  │     M14, M15     │    M9, M10, M11    │       -           │
+(próximo año)      │  Docs, Themes    │  Flexbox, Widgets  │   DESCARTADA     │
+                    │                   │    Clustering       │                   │
+───────────────────┼───────────────────┼────────────────────┼───────────────────┤
+🟢 BAJA PRIORIDAD   │                   │       M12          │                   │
+(futuro)           │                   │  Reflex Integration│                   │
+                    │                   │                    │                   │
+───────────────────┼───────────────────┼────────────────────┴───────────────────┘
 ```
                     │  BAJA DIFICULTAD  │  MEDIA DIFICULTAD  │  ALTA DIFICULTAD  │
 ────────────────────┼───────────────────┼────────────────────┼───────────────────┤

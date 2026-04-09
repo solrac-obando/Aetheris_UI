@@ -135,6 +135,19 @@ class AetherEngine:
                 f"Rejecting element to prevent DoS attack."
             )
         self._elements.append(element)
+    
+    def register(self, element: DifferentialElement) -> None:
+        """Alias for register_element() for backwards compatibility."""
+        self.register_element(element)
+    
+    def remove_element(self, element: DifferentialElement) -> None:
+        """Remove an element from the engine."""
+        if element in self._elements:
+            self._elements.remove(element)
+    
+    def remove(self, element: DifferentialElement) -> None:
+        """Alias for remove_element() for backwards compatibility."""
+        self.remove_element(element)
         
     def register_state(self, name: str, state_data: dict) -> None:
         pass

@@ -1,7 +1,7 @@
 # Aetheris UI - Project Status
 
 > Documento de estado del proyecto - Abril 2026
-> Estado: Production Ready para M1 y M2
+> Estado: Production Ready (M1, M2, M5, M6)
 
 ---
 
@@ -12,8 +12,9 @@
 | **Bundle Size** | ~200KB | ✅ Production |
 | **FPS (50K elementos)** | 60 FPS | ✅ Production |
 | **Safety Margin** | 35% | ✅ Stable |
-| **Tests** | 511+ passing | ✅ Production |
-| **Versión** | v1.1.0 | ✅ Released |
+| **Tests** | 580+ passing | ✅ Production |
+| **Versión** | v1.2.0 | ✅ Released |
+| **Regresión** | 100% (53/53) | ✅ Passed |
 
 ---
 
@@ -36,6 +37,25 @@
   - Static/Dynamic classification
   - Safety margin 35%
   - Async interpolation
+
+### M5: Layout Declarativo DSL (Completado ✅)
+- **Objetivo**: DSL para definir UIs físicas sin cálculos manuales
+- **Resultado**: Parser + Compiler + Factory completos
+- **Características**:
+  - Lexer/Parser para sintaxis tipo YAML
+  - LayoutCompiler para convertir AST a elementos
+  - ElementFactory para creación dinámica
+  - AetherLayout API principal
+  - Soporte para box, panel, button, text
+
+### M6: Sistema de Lifecycle/dispose() (Completado ✅)
+- **Objetivo**: Gestión explícita de recursos para prevenir memory leaks
+- **Resultado**: Sistema completo de gestión de memoria
+- **Características**:
+  - Disposable base class con context manager
+  - LifecycleManager singleton con tracking
+  - MemoryProfiler para análisis
+  - Weak references para cleanup automático
 
 ---
 
@@ -77,6 +97,8 @@ aetheris_UI/
 | Web Components | 91 | ✅ |
 | M1 (LightWASM) | 65 | ✅ |
 | M2 (Batch Asymptotes) | 58 | ✅ |
+| M5 (Layout DSL) | 25+ | ✅ |
+| M6 (Lifecycle) | 25+ | ✅ |
 | Performance | 50+ | ✅ |
 | Vulnerability | 14 | ✅ |
 | **Total** | **511+** | ✅ |

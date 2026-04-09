@@ -67,6 +67,19 @@ def get_optimal_max_elements(
     return operative
 
 
+def get_optimal_batch_size(max_elements: int) -> int:
+    """
+    Get optimal batch size for given max elements.
+    
+    Args:
+        max_elements: Maximum elements to process
+        
+    Returns:
+        Optimal batch size (typically 10-20% of max)
+    """
+    return max(max_elements // 10, 100)
+
+
 def get_theoretical_capacity(cpu_count: int = None) -> int:
     """Get theoretical maximum without safety margin."""
     if cpu_count is None:

@@ -7,13 +7,18 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from core.aether_math import StateTensor
+from core.lifecycle import DisposableMixin
 
 
-class DifferentialElement(ABC):
+class DifferentialElement(DisposableMixin, ABC):
     """Abstract base class for all UI elements in Aetheris.
     
     Each element owns a StateTensor that represents its current physical state
     [x, y, width, height] and evolves through forces and integration.
+    
+    Inherits from DisposableMixin for lifecycle management:
+    - dispose() method available on all elements
+    - Context manager support (with element as e)
     """
     
     def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0,
@@ -28,12 +33,20 @@ class DifferentialElement(ABC):
             sound_trigger: Sound trigger spec, e.g. 'impact:0.8' or
                           'on:click_sound;off:release_sound' or 'settle'
         """
+        DisposableMixin.__init__(self)
         self.tensor = StateTensor(x, y, w, h)
         self._color = np.array(color, dtype=np.float32)
         self._z_index = z
         self._sound_trigger = sound_trigger
         self._sound_triggered_this_frame = False
         self._prev_velocity_mag = 0.0
+
+    def dispose(self) -> None:
+        """Override dispose to clean up element-specific resources."""
+        self.tensor = None
+        self._color = None
+        self._sound_trigger = None
+        super().dispose()
 
     @property
     def sound_trigger(self):
