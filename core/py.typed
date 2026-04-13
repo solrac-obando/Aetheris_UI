@@ -1,0 +1,22 @@
+# Copyright 2026 Carlos Ivan Obando Aure
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+"""
+Aetheris Type Marker
+
+This file marks Aetheris as a typed package for mypy and other type checkers.
+See PEP 561 for details: https://peps.python.org/pep-0561/
+
+Usage:
+    - mypy will automatically check this package when running mypy core/
+    - VSCode Pylance will provide type hints
+    - pyright will use this for type checking
+
+This marker does NOT affect runtime performance.
+"""
+
+# This file intentionally left mostly empty.
+# The mere existence of 'py.typed' marks the package as typed.
