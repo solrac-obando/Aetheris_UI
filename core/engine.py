@@ -380,6 +380,14 @@ class AetherEngine:
     def element_count(self) -> int:
         return len(self._elements)
     
+    def get_all_elements(self) -> list:
+        """Return all registered elements.
+        
+        Returns:
+            List of DifferentialElement objects currently in the engine.
+        """
+        return self._elements.copy()
+    
     def get_ui_metadata(self) -> str:
         """Return JSON string containing metadata for elements that expose it.
         

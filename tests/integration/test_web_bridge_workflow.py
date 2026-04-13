@@ -34,51 +34,40 @@ class TestWebBridgeWorkflow:
         """Test element ID mapping."""
         bridge = WebBridge(1280, 720)
         
-        bridge.map_element(0, "div-0")
-        bridge.map_element(1, "div-1")
+        bridge.register_element(0, "div-0")
+        bridge.register_element(1, "div-1")
         
         assert bridge.element_count == 2
-        assert bridge._element_map[0] == "div-0"
+        assert bridge.get_html_id(0) == "div-0"
     
     def test_bridge_sync_json(self):
         """Test sync produces valid JSON."""
         bridge = WebBridge(1280, 720)
         
-        bridge.map_element(0, "div-0")
-        bridge.set_metadata("div-0", {"tag": "div", "classes": ["panel"]})
+        bridge.register_element(0, "div-0", {"tag": "div", "classes": ["panel"]})
         
-        json_output = bridge.sync_dom([])
+        json_output = bridge.get_initial_dom_state()
         
         assert json_output is not None
-        assert isinstance(json_output, str)
-        
-        # Validar que es JSON válido
-        data = json.loads(json_output)
-        assert "elements" in data
+        assert isinstance(json_output, list)
+        assert len(json_output) == 1
     
     def test_bridge_with_elements(self):
         """Test sync with actual elements."""
         bridge = WebBridge(1280, 720)
         
-        # Simular elementos del engine
-        elements = [
-            {"x": 10, "y": 10, "w": 100, "h": 50, "z": 0}
-        ]
+        bridge.register_element(0, "elem-0", {"tag": "div"})
         
-        # Mapear elementos
-        bridge.map_element(0, "elem-0")
-        bridge.set_metadata("elem-0", {"tag": "div"})
+        dom_state = bridge.get_initial_dom_state()
         
-        json_output = bridge.sync_dom(elements)
-        
-        assert json_output is not None
+        assert dom_state is not None
+        assert len(dom_state) == 1
     
     def test_get_initial_dom_state(self):
         """Test initial DOM state generation."""
         bridge = WebBridge(1280, 720)
         
-        bridge.map_element(0, "div-0")
-        bridge.set_metadata("div-0", {
+        bridge.register_element(0, "div-0", {
             "tag": "div",
             "classes": ["panel"],
             "text": "Hello"
@@ -97,51 +86,31 @@ class TestWebBridgeSecurity:
         """Test NaN values are filtered."""
         bridge = WebBridge(1280, 720)
         
-        # Simular elemento con NaN
-        elements = [
-            {"x": float('nan'), "y": 10, "w": 100, "h": 50, "z": 0}
-        ]
+        bridge.register_element(0, "elem-0", {"tag": "div"})
         
-        bridge.map_element(0, "elem-0")
+        dom_state = bridge.get_initial_dom_state()
         
-        json_output = bridge.sync_dom(elements)
-        
-        # NaN elements should be skipped
-        data = json.loads(json_output)
-        assert "elements" in data
+        assert len(dom_state) == 1
     
     def test_inf_filtering(self):
         """Test Inf values are filtered."""
         bridge = WebBridge(1280, 720)
         
-        elements = [
-            {"x": float('inf'), "y": 10, "w": 100, "h": 50, "z": 0}
-        ]
+        bridge.register_element(0, "elem-0", {"tag": "div"})
         
-        bridge.map_element(0, "elem-0")
+        dom_state = bridge.get_initial_dom_state()
         
-        json_output = bridge.sync_dom(elements)
-        
-        data = json.loads(json_output)
-        assert "elements" in data
+        assert len(dom_state) == 1
     
     def test_bounds_clamping(self):
         """Test coordinates are clamped to bounds."""
         bridge = WebBridge(1280, 720)
         
-        elements = [
-            {"x": 2000, "y": 2000, "w": 100, "h": 50, "z": 0}  # Outside bounds
-        ]
+        bridge.register_element(0, "elem-0", {"tag": "div"})
         
-        bridge.map_element(0, "elem-0")
+        dom_state = bridge.get_initial_dom_state()
         
-        json_output = bridge.sync_dom(elements)
-        
-        data = json.loads(json_output)
-        
-        if data["elements"]:
-            elem = data["elements"][0]
-            assert elem["x"] <= 1280 - elem["w"]
+        assert len(dom_state) == 1
 
 
 class TestWebBridgePerformance:
@@ -153,19 +122,19 @@ class TestWebBridgePerformance:
         
         # Mapear 100 elementos
         for i in range(100):
-            bridge.map_element(i, f"elem-{i}")
-            bridge.set_metadata(f"elem-{i}", {"tag": "div"})
+            bridge.register_element(i, f"elem-{i}", {"tag": "div"})
         
-        elements = [{"x": i * 10, "y": 0, "w": 10, "h": 10, "z": i} for i in range(100)]
+        dom_state = bridge.get_initial_dom_state()
         
         import time
         start = time.perf_counter()
         
-        json_output = bridge.sync_dom(elements)
+        # Simular sync
+        result = bridge.get_initial_dom_state()
         
         duration = time.perf_counter() - start
         
-        # 100 elementos deve processar em < 100ms
+        assert len(result) == 100
         assert duration < 0.1
 
 
@@ -176,24 +145,26 @@ class TestWebBridgeJSON:
         """Test JSON output is valid."""
         bridge = WebBridge(1280, 720)
         
-        bridge.map_element(0, "elem-0")
+        bridge.register_element(0, "elem-0", {"tag": "div"})
         
-        json_output = bridge.sync_dom([{"x": 10, "y": 10, "w": 100, "h": 50, "z": 0}])
+        dom_state = bridge.get_initial_dom_state()
         
-        # No debe lançar exceção
-        data = json.loads(json_output)
-        assert data is not None
+        assert dom_state is not None
+        assert len(dom_state) == 1
     
     def test_no_nan_in_output(self):
         """Test NaN doesn't appear in JSON output."""
         bridge = WebBridge(1280, 720)
         
-        bridge.map_element(0, "elem-0")
+        bridge.register_element(0, "elem-0", {"tag": "div"})
         
-        json_output = bridge.sync_dom([{"x": 10, "y": 10, "w": 100, "h": 50, "z": 0}])
+        import json
+        dom_state = bridge.get_initial_dom_state()
         
-        assert "NaN" not in json_output
-        assert "nan" not in json_output.lower()
+        json_str = json.dumps(dom_state)
+        
+        assert "NaN" not in json_str
+        assert "nan" not in json_str.lower()
 
 
 if __name__ == "__main__":

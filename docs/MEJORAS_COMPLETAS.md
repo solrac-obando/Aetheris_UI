@@ -2,7 +2,7 @@
 # ================================
 # Estado completo de todas las mejoras M1-M15
 # Fecha: 13 Abril 2026
-# Versión: 1.6.1
+# Versión: 1.7.0
 
 ---
 
@@ -92,6 +92,40 @@ builder.build_from_intent(engine, intent_json)
 **Ubicación:** `core/html_parser.py`
 **Descripción:** Parser HTML/CSS-like
 
+### M9: Declarative API (Flet-like) ✅ (NUEVO v1.7)
+**Ubicación:** `core/declarative_api.py`
+**Descripción:** API declarativa tipo Flutter/Flet para desarrollo rápido
+
+```python
+def main(page: Page):
+    page.add(
+        Column(controls=[
+            Text("Aetheris UI"),
+            Row(controls=[Container(width=100), Container(width=100)])
+        ])
+    )
+```
+
+**Widgets disponibles:**
+- Page, Column, Row, Container, Text
+- Stack, Image, Button
+- Layout matemático: Y = parent_y + sum(heights) + spacing
+
+### M10: Headless Texture Bridge ✅ (NUEVO v1.7)
+**Ubicación:** `core/headless_bridge.py`
+**Descripción:** Framework embebible para integrar Aetheris en otros frameworks
+
+```python
+bridge = HeadlessTextureBridge(engine)
+frame = bridge.get_frame_buffer()
+# frame.states: np.ndarray (N, 11) - [x, y, w, h, r, g, b, a, z, vx, vy]
+```
+
+**Formatos de salida:**
+- numpy: Array binario
+- json: Serialización completa
+- base64: PNG codificado
+
 ---
 
 ## 🎨 COMPONENTES UI (32 componentes)
@@ -166,25 +200,33 @@ builder.build_from_intent(engine, intent_json)
 - `tests/logging/test_plugins.py`
 - `tests/logging/test_decorators.py`
 
-### Stress/Ataque
+### Stress/Ataque (privados, no publicados)
 - `tests/logging/test_stress_attack.py`
+
+### Nuevos v1.7 (API Declarativa + Headless)
+- `tests/test_declarative_api.py` - Tests de la API declarativa
+- `tests/test_headless_bridge.py` - Tests del bridge headless
+- `tests/test_general_integration.py` - Tests de integración general
+- `tests/test_flet_architecture.py` - Tests específicos de arquitectura Flet-like
 
 ---
 
 ## 📄 ARCHIVOS DEL PROYECTO
 
-### Core (28 módulos)
+### Core (30 módulos)
 ```
 core/
 ├── aether_math.py      # Math utils (check_and_fix_nan)
 ├── audio_bridge.py     # Audio integration
-├── components.py      # 32 UI components
+├── components.py       # 32 UI components
 ├── data_bridge.py     # Database integration
+├── declarative_api.py  # Flet-like API (NUEVO v1.7)
 ├── dynamic_limits.py  # Hardware detection
 ├── elements.py         # Base elements
 ├── engine.py          # AetherEngine
 ├── engine_selector.py # Engine selection
 ├── gl_renderer.py     # OpenGL renderer
+├── headless_bridge.py # Headless texture bridge (NUEVO v1.7)
 ├── hpc_solver.py      # HPC solver
 ├── html_parser.py     # HTML parser
 ├── input_manager.py    # Input handling
@@ -203,6 +245,8 @@ core/
 ├── web_bridge.py    # Web bridge
 ├── web_elements.py  # Web elements
 ├── web_server.py    # Web server
+├── types_typeddict.py # M8 Type Hints
+├── protocols.py     # Protocol definitions
 └── logging/        # Logging system (M3)
 ```
 
