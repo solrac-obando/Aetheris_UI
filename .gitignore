@@ -53,8 +53,10 @@ htmlcov/
 
 # --- Database and logs ---
 *.db
+# Exclude log OUTPUT files (not the logging code!)
 logs/*.log
 !logs/.gitkeep
+!core/logging/
 
 # --- Environment secrets ---
 .env

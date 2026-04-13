@@ -1,100 +1,20 @@
-# Copyright 2026 Carlos Ivan Obando Aure
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#     http://www.apache.org/licenses/LICENSE-2.0
-
-# =============================================================================
 # MANIFEST.in: Control what gets included in the PyPI distribution
-# =============================================================================
-#
-# IMPORTANT: This file ensures that private tests (stress/attacks) are EXCLUDED
+# This file ensures that private tests (stress/attacks) are EXCLUDED
 # from the distributed packages (.tar.gz and .whl files) on PyPI.
-#
-# The package maintainers MUST NOT distribute internal test code.
-# =============================================================================
 
-# =============================================================================
-# INCLUDE: License and essential files
-# =============================================================================
-include LICENSE
-include LICENSE*
+# Exclude explicitly the sensitive folders from .tar.gz and .whl
+recursive-exclude tests/stress *
+recursive-exclude tests/attacks *
+
+# Include essential files
 include README.md
+include LICENSE
 include pyproject.toml
 include setup.py
 include MANIFEST.in
 
-# =============================================================================
-# INCLUDE: Core package modules (readable Python - public)
-# =============================================================================
+# Include core modules (readable Python)
 recursive-include core *.py
-recursive-include core *.md
-recursive-include core *.txt
 
-# =============================================================================
-# INCLUDE: Public demo and examples
-# =============================================================================
-recursive-include demo *.py
-recursive-include demo *.db
-
-# =============================================================================
-# INCLUDE: WebAssembly adapters
-# =============================================================================
-recursive-include wasm *.py
-
-# =============================================================================
-# INCLUDE: Templates and configuration
-# =============================================================================
-recursive-include templates *
-recursive-include scripts *
-
-# =============================================================================
-# INCLUDE: Public tests (non-stress, non-attacks)
-# =============================================================================
+# Include public tests
 recursive-include tests *.py
-# Include tests subdirectories that are PUBLIC (not stress/attacks)
-include tests/__init__.py
-recursive-include tests/test_*.py
-
-# =============================================================================
-# EXCLUDE: Private stress tests - DO NOT DISTRIBUTE
-# =============================================================================
-# These directories contain extreme performance tests that:
-# - Are for internal development only
-# - Require special infrastructure
-# - Should NEVER be on PyPI
-exclude tests/stress
-exclude tests/stress/**
-
-# =============================================================================
-# EXCLUDE: Private attack tests - DO NOT DISTRIBUTE
-# =============================================================================
-# These directories contain security vulnerability testing that:
-# - Contains sensitive security research
-# - Should be kept private
-# EXCEPT test_general_attack.py is tracked via .gitignore negation
-exclude tests/attacks
-exclude tests/attacks/**
-
-# =============================================================================
-# EXCLUDE: Build artifacts
-# =============================================================================
-exclude build/
-exclude dist/
-exclude *.egg-info/
-exclude core/*.so
-exclude core/*.c
-exclude core/*.h
-exclude core/__pycache__/
-
-# =============================================================================
-# EXCLUDE: Development files
-# =============================================================================
-exclude .pytest_cache/
-exclude .mypy_cache/
-exclude htmlcov/
-exclude .tox/
-exclude .venv/
-exclude venv/
-exclude ENV/
-exclude __pycache__/
