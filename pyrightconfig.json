@@ -1,0 +1,33 @@
+{
+  "include": [
+    "core"
+  ],
+  "exclude": [
+    "tests",
+    "demo",
+    "docs",
+    "wasm"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingTypeStubs": false,
+  "reportUnknownMemberForType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownArgumentType": false,
+  "reportMissingParameterType": false,
+  "reportReturnType": false,
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "pythonPlatform": "Linux",
+  "executionEnvironments": [
+    {
+      "root": "core",
+      "pythonVersion": "3.12",
+      "pythonPlatform": "Linux"
+    }
+  ],
+  "typeStubPackages": [
+    "numpy"
+  ],
+  "lazyImportTime": true,
+  "symbolByValue": true
+}

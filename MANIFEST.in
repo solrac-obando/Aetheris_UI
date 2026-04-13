@@ -1,0 +1,20 @@
+# MANIFEST.in: Control what gets included in the PyPI distribution
+# This file ensures that private tests (stress/attacks) are EXCLUDED
+# from the distributed packages (.tar.gz and .whl files) on PyPI.
+
+# Exclude explicitly the sensitive folders from .tar.gz and .whl
+recursive-exclude tests/stress *
+recursive-exclude tests/attacks *
+
+# Include essential files
+include README.md
+include LICENSE
+include pyproject.toml
+include setup.py
+include MANIFEST.in
+
+# Include core modules (readable Python)
+recursive-include core *.py
+
+# Include public tests
+recursive-include tests *.py

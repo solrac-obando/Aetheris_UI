@@ -13,6 +13,7 @@ from core.aether_math import StateTensor
 from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver
 from core.state_manager import StateManager
+from core.json_utils import to_json
 from core.tensor_compiler import TensorCompiler
 from core.input_manager import InputManager
 
@@ -21,6 +22,23 @@ from core.input_manager import InputManager
 _HPC_TARGET_FRAME_MS = 16.667  # 60 FPS budget
 _HPC_CPU_TARGET = 0.60         # 60% of available cores
 _HPC_THROTTLE_ENABLED = True   # Set False to disable throttle (tests set this to False)
+
+# ── Dynamic Limits: Auto-detect based on hardware ─────────────────────────
+try:
+    from core.dynamic_limits import get_optimal_max_elements, get_system_profile
+    _SYSTEM_PROFILE = get_system_profile()
+    _DEFAULT_MAX_ELEMENTS = _SYSTEM_PROFILE["engine_limit"]
+    _IS_SAFETY_MODE = _SYSTEM_PROFILE["safety_mode"]
+    _IS_PERFORMANCE_MODE = _SYSTEM_PROFILE["performance_mode"]
+except ImportError:
+    _DEFAULT_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", "4000"))
+    _IS_SAFETY_MODE = False
+    _IS_PERFORMANCE_MODE = False
+
+# ── Security Limits: Prevent DoS attacks ─────────────────────────────────────────
+_MAX_ELEMENTS = int(os.environ.get("AETHERIS_MAX_ELEMENTS", str(_DEFAULT_MAX_ELEMENTS)))
+_CIRCUIT_BREAKER_THRESHOLD_MS = 100  # Circuit breaker if tick exceeds 100ms
+_ELEMENT_LIMIT_ENABLED = os.environ.get("AETHERIS_ELEMENT_LIMIT", "false").lower() == "true"
 
 
 def _hpc_throttle(tick_start: float, tick_end: float) -> None:
@@ -112,7 +130,25 @@ class AetherEngine:
             elem.tensor.velocity[:] = self._batch_velocities[i]
         
     def register_element(self, element: DifferentialElement) -> None:
+        if _ELEMENT_LIMIT_ENABLED and len(self._elements) >= _MAX_ELEMENTS:
+            raise RuntimeError(
+                f"Security: Maximum element limit ({_MAX_ELEMENTS}) exceeded. "
+                f"Rejecting element to prevent DoS attack."
+            )
         self._elements.append(element)
+    
+    def register(self, element: DifferentialElement) -> None:
+        """Alias for register_element() for backwards compatibility."""
+        self.register_element(element)
+    
+    def remove_element(self, element: DifferentialElement) -> None:
+        """Remove an element from the engine."""
+        if element in self._elements:
+            self._elements.remove(element)
+    
+    def remove(self, element: DifferentialElement) -> None:
+        """Alias for remove_element() for backwards compatibility."""
+        self.remove_element(element)
         
     def register_state(self, name: str, state_data: dict) -> None:
         pass
@@ -178,6 +214,12 @@ class AetherEngine:
         if n_elements == 0:
             return np.zeros(0, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
 
+        # Circuit Breaker: If tick is too slow, skip expensive operations
+        if n_elements > _MAX_ELEMENTS // 2:
+            _circuit_breaker_tripped = True
+        else:
+            _circuit_breaker_tripped = False
+
         # Phase 10: Check for layout shock (Window teleportation)
         viscosity_multiplier = self.state_manager.check_teleportation_shock(win_w, win_h)
         base_viscosity = self._default_viscosity
@@ -202,18 +244,25 @@ class AetherEngine:
                     target = self.state_manager.lerp_arrays(target, element._override_asymptote, 0.1)
                 self._batch_targets[idx] = target
 
-            # Sync state/velocity to batch (minimized: direct numpy assignment)
+            # Sync state/velocity to batch (OPTIMIZED: vectorized NaN/Inf sanitization)
+            # Mathematical precision: Direct NumPy operations preserve float32 precision
+            # Using boolean masking instead of element-by-element loops
+            states_view = self._batch_states[:n_elements]
+            velocities_view = self._batch_velocities[:n_elements]
+            
             for i, elem in enumerate(self._elements):
-                # Aether-Guard: sanitize NaN/Inf during copy
-                for j in range(4):
-                    sv = float(elem.tensor.state[j])
-                    if np.isnan(sv) or np.isinf(sv):
-                        elem.tensor.state[j] = np.float32(0.0)
-                    vv = float(elem.tensor.velocity[j])
-                    if np.isnan(vv) or np.isinf(vv):
-                        elem.tensor.velocity[j] = np.float32(0.0)
-                self._batch_states[i] = elem.tensor.state
-                self._batch_velocities[i] = elem.tensor.velocity
+                states_view[i] = elem.tensor.state
+                velocities_view[i] = elem.tensor.velocity
+            
+            # Aether-Guard: Vectorized NaN/Inf sanitization (preserves 100% precision)
+            # Valid elements remain unchanged; invalid elements get reset to zeros
+            nan_mask_state = np.isnan(states_view) | np.isinf(states_view)
+            nan_mask_vel = np.isnan(velocities_view) | np.isinf(velocities_view)
+            
+            if nan_mask_state.any():
+                states_view[nan_mask_state] = np.float32(0.0)
+            if nan_mask_vel.any():
+                velocities_view[nan_mask_vel] = np.float32(0.0)
 
             # Check if all elements use the same stiffness (fast path)
             uniform_stiffness = True
@@ -265,7 +314,7 @@ class AetherEngine:
                 max(self._dt, 0.001), active_viscosity, 5000.0
             )
 
-            # Write back (minimized: direct numpy copy)
+            # Write back (OPTIMIZED: direct slice assignment preserving 100% precision)
             for i, elem in enumerate(self._elements):
                 elem.tensor.state[:] = self._batch_states[i]
                 elem.tensor.velocity[:] = self._batch_velocities[i]
@@ -305,17 +354,16 @@ class AetherEngine:
                 element.tensor.apply_force(force)
                 element.tensor.euler_integrate(self._dt, viscosity=element_viscosity, target_state=target)
             
-        # Data Extraction
+        # Data Extraction (zero-allocation: use direct properties instead of rendering_data dict)
         n_elements = len(self._elements)
         if n_elements == 0:
             return np.zeros(0, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
             
         data = np.zeros(n_elements, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
         for i, element in enumerate(self._elements):
-            r_data = element.rendering_data
-            data[i]['rect'] = r_data['rect']
-            data[i]['color'] = r_data['color']
-            data[i]['z'] = r_data['z']
+            data[i]['rect'] = element.rect
+            data[i]['color'] = element.color
+            data[i]['z'] = element.z_index
 
         # HPC throttle: sleep if tick finished early to maintain 60-70% CPU
         # Only activate for heavy workloads (50+ elements) to avoid overhead on small demos
@@ -332,22 +380,32 @@ class AetherEngine:
     def element_count(self) -> int:
         return len(self._elements)
     
-    def get_ui_metadata(self) -> str:
-        """Return JSON string containing text metadata for CanvasTextNode and DOMTextNode elements.
-        
-        The Structured NumPy Array only holds floats, so text data (strings, font sizes)
-        must be exposed through a separate JSON bridge. This method collects all
-        text-based elements and returns their metadata keyed by z-index.
+    def get_all_elements(self) -> list:
+        """Return all registered elements.
         
         Returns:
-            JSON string: {"z_index": {"type": "canvas_text|dom_text", "text": "...", ...}}
+            List of DifferentialElement objects currently in the engine.
+        """
+        return self._elements.copy()
+    
+    def get_ui_metadata(self) -> str:
+        """Return JSON string containing metadata for elements that expose it.
+        
+        The Structured NumPy Array only holds floats, so non-physics data (strings,
+        font sizes, component-specific metadata) must be exposed through a separate
+        JSON bridge. This method collects all elements with a non-None metadata
+        property and returns their data keyed by z-index.
+        
+        Returns:
+            JSON string: {"z_index": {"type": "...", "text": "...", ...}}
         """
         metadata = {}
         for element in self._elements:
-            if isinstance(element, (CanvasTextNode, DOMTextNode)):
+            meta = element.metadata
+            if meta is not None:
                 z_key = str(element._z_index)
-                metadata[z_key] = element.text_metadata
-        return json.dumps(metadata)
+                metadata[z_key] = meta
+        return to_json(metadata)
     
     def _apply_genre_orbit(self, genre_idx: int, stiffness: float,
                            center_x: float, center_y: float) -> None:

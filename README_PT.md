@@ -3,8 +3,8 @@
 > **Física-como-UI** — O primeiro motor de interface de usuário de alto desempenho impulsionado por álgebra linear para Python e WebAssembly.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Licença: MIT](https://img.shields.io/badge/Licença-MIT-green.svg)](LICENSE)
-[![Testes](https://img.shields.io/badge/testes-31%20aprovados-brightgreen.svg)](tests/)
+[![Licença: Apache 2.0](https://img.shields.io/badge/Licença-Apache%202.0-blue.svg)](LICENSE)
+[![Testes](https://img.shields.io/badge/testes-375%20aprovados-brightgreen.svg)](tests/)
 
 O Aetheris UI trata o layout de interface de usuário como um **sistema físico dinâmico** governado pelas leis da mecânica clássica. Em vez de regras de posicionamento estáticas, cada elemento da UI é uma partícula com posição, velocidade e aceleração — evoluindo através de **integração de Euler** com forças restauradoras da **Lei de Hooke**, **amortecimento crítico** e **limitação por norma L2** para estabilidade numérica.
 

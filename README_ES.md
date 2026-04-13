@@ -4,7 +4,7 @@
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Licencia](https://img.shields.io/badge/Licencia-Apache%202.0-blue.svg)](LICENSE)
-[![Pruebas](https://img.shields.io/badge/pruebas-360%2B%20aprobadas-brightgreen.svg)](tests/)
+[![Pruebas](https://img.shields.io/badge/pruebas-375%20aprobadas-brightgreen.svg)](tests/)
 
 Aetheris UI trata el diseño de interfaces de usuario como un **sistema físico dinámico** gobernado por las leyes de la mecánica clásica. En lugar de reglas de posicionamiento estáticas, cada elemento de la interfaz es una partícula con posición, velocidad y aceleración — evolucionando a través de **integración de Euler** con fuerzas restauradoras de la **Ley de Hooke**, **amortiguamiento crítico** y **limitación por norma L2** para estabilidad numérica.
 

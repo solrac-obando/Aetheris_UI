@@ -1,23 +1,28 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=68.0", "wheel", "Cython>=3.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aetheris-ui"
-version = "1.0.0"
-description = "A high-performance, physics-based UI engine driven by linear algebra for Python & WebAssembly"
+name = "aetheris"
+version = "1.6.1"
+description = "A high-performance, math-based UI framework with dual-telemetry logging."
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "Carlos Ivan Obando Aure", email = "solracivan.aure@gmail.com"},
 ]
-keywords = ["physics", "ui-engine", "webassembly", "pyodide", "moderngl", "kivy", "data-visualization"]
+keywords = [
+    "ui", "framework", "math-rendering", "headless", "algebra",
+    "automation", "physics-engine", "linear-algebra", "data-visualization",
+    "dashboard", "charts", "real-time-graphics", "animation"
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Cython",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: Scientific/Engineering :: Visualization",
     "Topic :: Multimedia :: Graphics",

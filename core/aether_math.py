@@ -103,6 +103,11 @@ class StateTensor:
     - L2 Norm velocity/acceleration clamping
     - NaN/Inf detection and graceful recovery
     - UI Snap Threshold (99% Rule)
+    
+    Properties for backwards compatibility:
+    - v2d: Returns velocity[:2] for 2D physics operations
+    - position: Returns state[:2] (x, y)
+    - size: Returns state[2:] (width, height)
     """
 
     def __init__(self, x: float = 0.0, y: float = 0.0, w: float = 100.0, h: float = 100.0):
@@ -110,6 +115,42 @@ class StateTensor:
         self.state = np.array([x, y, w, h], dtype=np.float32)
         self.velocity = np.zeros(4, dtype=np.float32)
         self.acceleration = np.zeros(4, dtype=np.float32)
+
+    @property
+    def v2d(self) -> np.ndarray:
+        """Returns first 2 elements of velocity for 2D physics compatibility.
+        
+        Returns:
+            numpy.ndarray: [vx, vy] - 2D velocity vector
+        """
+        return self.velocity[:2]
+    
+    @property
+    def a2d(self) -> np.ndarray:
+        """Returns first 2 elements of acceleration for 2D physics compatibility.
+        
+        Returns:
+            numpy.ndarray: [ax, ay] - 2D acceleration vector
+        """
+        return self.acceleration[:2]
+    
+    @property
+    def position(self) -> np.ndarray:
+        """Returns position [x, y] from state.
+        
+        Returns:
+            numpy.ndarray: [x, y] - position vector
+        """
+        return self.state[:2]
+    
+    @property
+    def size(self) -> np.ndarray:
+        """Returns size [width, height] from state.
+        
+        Returns:
+            numpy.ndarray: [w, h] - dimensions vector
+        """
+        return self.state[2:]
 
     def apply_force(self, force: np.ndarray):
         """Apply a force vector to acceleration.
