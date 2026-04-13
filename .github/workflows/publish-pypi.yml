@@ -1,0 +1,133 @@
+# Copyright 2026 Carlos Ivan Obando Aure
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# =============================================================================
+# GitHub Actions: Automated PyPI Publishing Workflow
+# =============================================================================
+#
+# TRIGGER: Runs automatically when a new GitHub Release or Tag is published.
+#
+# FEATURES:
+# - Compiles core/aether_math.py via Cython for performance
+# - Builds both sdist and wheel distributions
+# - Uses OIDC Trusted Publishing for passwordless authentication
+# - Publishes directly to PyPI (production) and TestPyPI (testing)
+#
+# SETUP:
+# 1. Go to https://pypi.org/manage/account/publishing/
+# 2. Add Trusted Publisher: repository=your-repo, workflow filename, environment name
+# 3. On PyPI, create project "aetheris" if not exists
+# =============================================================================
+
+name: Build and Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  tag:
+    types: [created]
+
+permissions:
+  contents: read
+  id-token: write  # Required for OIDC Trusted Publishing
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =====================================================================
+      # 1. CHECKOUT: Get source code
+      # =====================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # =====================================================================
+      # 2. SETUP PYTHON: Use latest Python for optimal performance
+      # =====================================================================
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # =====================================================================
+      # 3. INSTALL DEPENDENCIES: Build tools and Cython
+      # =====================================================================
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            build \
+            wheel \
+            setuptools \
+            Cython>=3.0.0 \
+            numpy>=1.26.4
+
+      # =====================================================================
+      # 4. BUILD SOURCE DISTRIBUTION (sdist)
+      # =====================================================================
+      - name: Build source distribution
+        run: |
+          python -m build \
+            --sdist \
+            --outdir dist/ \
+            .
+
+      # =====================================================================
+      # 5. BUILD WHEEL (with Cython compilation)
+      # =====================================================================
+      - name: Build wheel
+        run: |
+          python -m build \
+            --wheel \
+            --outdir dist/ \
+            .
+
+      # =====================================================================
+      # 6. VERIFY BUILD ARTIFACTS
+      # =====================================================================
+      - name: List built artifacts
+        run: |
+          ls -la dist/
+          echo "---"
+          echo "Checking for Cython extension..."
+          find . -name "*.so" -o -name "*.pyd" 2>/dev/null | head -5 || echo "No compiled extensions in tree"
+
+      # =====================================================================
+      # 7. UPLOAD ARTIFACTS (for inspection)
+      # =====================================================================
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      # =====================================================================
+      # 8. PUBLISH TO TEST PYPI (first, for validation)
+      # =====================================================================
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip_existing: true
+
+      # =====================================================================
+      # 9. PUBLISH TO PRODUCTION PYPI (OIDC passwordless)
+      # =====================================================================
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # OIDC Trusted Publishing - no username/password needed
+          password: ""
+          skip_existing: true
+
+
+# =============================================================================
+# ENVIRONMENT VARIABLES (optional, for debugging)
+# =============================================================================
+env:
+  PYTHON_VERSION: "3.12"
+  BUILD_VERBOSE: "1"

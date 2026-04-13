@@ -5,9 +5,9 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-511%20passing-brightgreen.svg)](tests/)
-[![Benchmark](https://img.shields.io/badge/rust%20speedup-17.2x-gold.svg)](BENCHMARK.md)
-[![Bundle](https://img.shields.io/badge/bundle-200KB-blue.svg)](docs/PROJECT_STATUS.md)
+[![Version](https://img.shields.io/badge/version-1.6.1-gold.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-500%2B-brightgreen.svg)](tests/)
+[![Security](https://img.shields.io/badge/security-NaN%2FInf%20protected-green.svg)](core/json_utils.py)
 
 Aetheris UI treats user interface layout as a **dynamic physical system** governed by classical mechanics. Every UI element is a particle with position, velocity, and acceleration — evolving through **Symplectic Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
 
@@ -40,6 +40,8 @@ Now features a **dual-engine architecture**: a pure Python engine and a **17.2x 
 - **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers derived from physical state changes.
 - **HPC-Optimized Core** — Numba-accelerated vectorized Python kernels + Rayon-parallelized Rust batch processing for 10 to 5,000+ elements.
 - **Aether-Guard Safety** — Industrial-grade numerical stability. L2 norm clamping, epsilon-protected division, and NaN/Inf sanitization prevent engine collapses.
+- **Dual-Telemetry Logging** — Native logging system with plugin architecture. Separate framework and project logs for developers and end users.
+- **Web Security** — Automatic NaN/Inf to null conversion for JavaScript compatibility. Validates all data before JSON serialization.
 - **Dynamic Resource Limits** — Auto-detect hardware capabilities with 35% safety margin for stable 60 FPS.
 - **Zero External Math Dependencies** — Custom `Vec4` type in Rust, pure NumPy in Python. No linear algebra supply chain risk.
 - **HTML/CSS Hydration** — Declarative UI definition via `AetherHTMLParser`. Maps HTML tags and CSS-like attributes to physics properties.
@@ -138,17 +140,23 @@ See [BENCHMARK.md](BENCHMARK.md) for full performance results.
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.12+ 
 - NumPy 1.26.4+
 - For Rust engine: Rust 1.70+ and `maturin`
 - For WASM: Modern browser with SharedArrayBuffer support (COOP/COEP headers)
 
-### Desktop (ModernGL Renderer)
+### pip install (recommended)
 
 ```bash
-git clone https://github.com/your-org/aetheris-ui.git
+pip install aetheris-ui
+```
+
+### From source
+
+```bash
+git clone https://github.com/carlosobando/aetheris-ui.git
 cd aetheris-ui
-pip install -r requirements.txt
+pip install -e .
 
 # Optional: Build Rust engine for 17x performance
 cd aetheris-rust && pip install maturin && maturin develop -m crates/aether-pyo3/Cargo.toml && cd ..
@@ -158,10 +166,6 @@ xvfb-run -a python3 main.py --gl --frames 50
 
 # Run with Tkinter debug renderer
 python3 main.py --tkinter
-
-# Run with MockRenderer (headless, no display)
-python3 main.py
-```
 
 ### Web (Pyodide/WASM Renderer)
 
@@ -288,6 +292,60 @@ embedding = [0.5, -0.3, 0.8, -0.1]  # AI embedding from pgvector
 force = vector_to_tensor(embedding, scale=100.0)
 # force = [50.0, -30.0, 80.0, -10.0] — ready for StateTensor.apply_force()
 ```
+
+---
+
+## Dual-Telemetry Logging
+
+Aetheris v1.6+ includes a native logging system with plugin architecture:
+
+```python
+from core.logging import framework_logger, project_logger
+from core.logging.plugins import StandardFilePlugin
+
+# Framework log (for developers)
+framework_logger.add_plugin(StandardFilePlugin("logs/aetheris.log"))
+framework_logger.info("Engine initialized")
+
+# Project log (for end users)
+project_logger.add_plugin(StandardFilePlugin("logs/mi_proyecto.log"))
+project_logger.info("Application started")
+```
+
+### Decorators
+
+```python
+from core.logging.decorators import log_operation, with_log, track_duration
+
+@log_operation(project_logger, "process_data")
+def process_data(data):
+    return transform(data)
+
+@track_duration(framework_logger, "heavy_operation")
+def heavy_operation():
+    # Function execution is automatically timed
+    return compute()
+```
+
+See [core/logging/](core/logging/) for full documentation.
+
+---
+
+## Web Security: NaN/Inf Protection
+
+Aetheris automatically converts NaN/Inf to `null` for JavaScript compatibility:
+
+```python
+from core.json_utils import to_json
+
+# Before: {"x": NaN} would break JavaScript
+# After: {"x": null} is valid JSON
+data = {"x": float('nan'), "y": 42, "arr": np.array([1, float('nan'), 3])}
+json_str = to_json(data)
+# Result: '{"y": 42, "arr": [1, null, 3], "x": null}'
+```
+
+This prevents web rendering crashes and ensures all data is valid for browser consumption.
 
 ---
 

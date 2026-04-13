@@ -1,45 +1,89 @@
-# Python bytecode
-__pycache__/
-*.pyc
-*.pyo
+# =============================================================================
+# SECURITY EXCLUSIONS: Attack Surface Control
+# =============================================================================
+# 
+# IMPORTANT: This .gitignore PROTECTS sensitive test directories
+# from being pushed to public repositories.
+#
+# Strategy:
+# 1. IGNORE all stress and attack tests (private/internal only)
+# 2. Use NEGATION (!) to track exactly ONE public reference test
+# =============================================================================
 
-# Numba cache files
+# --- Python bytecode ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Numba cache ---
 *.nbc
 *.nbi
 
-# Virtual environments
+# --- Cython build artifacts ---
+core/*.c
+core/*.h
+
+# --- Virtual environments ---
 .venv/
 venv/
+ENV/
 
-# Generated databases
-*.db
-
-# Pytest cache
-.pytest_cache/
-
-# Egg info
-*.egg-info/
-
-# IDE
+# --- IDE and OS ---
 .vscode/
 .idea/
-
-# OS
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
 
-# Release directory (generated, not tracked)
+# --- Build outputs ---
+build/
+dist/
+*.egg-info/
+*.egg
 release_v1/
 
-# ── SHIELDED: Private tests (NEVER leave local environment) ──
+# --- Testing and coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# --- Database and logs ---
+*.db
+logs/*.log
+!logs/.gitkeep
+
+# --- Environment secrets ---
+.env
+.env.local
+
+# =============================================================================
+# SECURITY: Private test directories (NEVER commit)
+# =============================================================================
+# All contents inside tests/stress/ - internal development only
+tests/stress/**
+
+# All contents inside tests/attacks/ - security research only  
+tests/attacks/**
+
+# --- NEGATION: Track exactly ONE public reference attack test ---
+# Use Git's negation operator to allow exactly ONE public test file.
+# This serves as a public benchmark WITHOUT exposing internal tests.
+!tests/attacks/test_general_attack.py
+
+
+# =============================================================================
+# SHIELDED FILES: Never leave local environment
+# =============================================================================
 tests/local_torture_test.py
 tests_stress/
 *stress*.py
 *defensive*.py
 *iron_mountain*.py
 *titan*.py
-
-# ── Internal audit and blueprint reports ──
 AETHERIS_AUDIT.md
 docs/FUTURE_PROPOSALS.md
 docs/FUTURE_PROPOSALS_ES.md

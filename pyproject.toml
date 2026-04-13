@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aetheris-ui"
-version = "1.0.0"
+version = "1.6.1"
 description = "A high-performance, physics-based UI engine driven by linear algebra for Python & WebAssembly"
 readme = "README.md"
 license = {text = "Apache-2.0"}
