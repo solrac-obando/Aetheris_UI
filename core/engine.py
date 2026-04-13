@@ -13,6 +13,7 @@ from core.aether_math import StateTensor
 from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver
 from core.state_manager import StateManager
+from core.json_utils import to_json
 from core.tensor_compiler import TensorCompiler
 from core.input_manager import InputManager
 
@@ -396,7 +397,7 @@ class AetherEngine:
             if meta is not None:
                 z_key = str(element._z_index)
                 metadata[z_key] = meta
-        return json.dumps(metadata)
+        return to_json(metadata)
     
     def _apply_genre_orbit(self, genre_idx: int, stiffness: float,
                            center_x: float, center_y: float) -> None:

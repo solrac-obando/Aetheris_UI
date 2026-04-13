@@ -18,6 +18,7 @@ import os
 import numpy as np
 from typing import Dict, List, Any, Optional
 from core.aether_math import StateTensor
+from core.json_utils import to_json
 
 # Dynamic limits based on hardware
 try:
@@ -124,7 +125,7 @@ class WebBridge:
                 "z": getattr(elem, '_z_index', idx)
             })
 
-        return json.dumps(payload)
+        return to_json(payload)
 
     def get_initial_dom_state(self) -> List[Dict[str, Any]]:
         """
