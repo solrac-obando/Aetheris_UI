@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aetheris M1 Demo - LightWASM</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #eee;
+        }
+        
+        header {
+            background: rgba(0,0,0,0.3);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 { font-size: 1.5rem; color: #00d4ff; }
+        
+        .status { font-size: 0.85rem; color: #888; }
+        .status span { color: #4ade80; }
+        
+        main { padding: 2rem; }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #00d4ff;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        button:hover { background: #00b4d8; transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+        
+        button.secondary {
+            background: #333;
+            color: #fff;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 2rem;
+        }
+        
+        .canvas-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            min-height: 400px;
+        }
+        
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 400px;
+            background: #0a0a12;
+        }
+        
+        .info-panel {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .info-panel h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+        
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .stat-label { color: #888; font-size: 0.85rem; }
+        .stat-value { color: #fff; font-weight: 600; }
+        
+        .log {
+            margin-top: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.75rem;
+            background: #111;
+            padding: 0.5rem;
+            border-radius: 6px;
+        }
+        
+        .log-entry { color: #666; margin: 2px 0; }
+        .log-entry.info { color: #4ade80; }
+        .log-entry.warn { color: #fbbf24; }
+        .log-entry.error { color: #f87171; }
+        
+        .elements-list {
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+        }
+        
+        .element-item {
+            background: rgba(0,212,255,0.1);
+            padding: 0.25rem 0.5rem;
+            margin: 2px 0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>⚡ Aetheris M1 Demo</h1>
+        <div class="status">Adapter: <span id="adapter-type">Cargando...</span></div>
+    </header>
+    
+    <main>
+        <div class="controls">
+            <button onclick="addElement()">+ Agregar Elemento</button>
+            <button onclick="removeElement()">- Quitar Elemento</button>
+            <button class="secondary" onclick="resetElements()">Reset</button>
+            <button class="secondary" onclick="startAnimation()">▶ Animar</button>
+            <button class="secondary" onclick="stopAnimation()">⏹ Parar</button>
+        </div>
+        
+        <div class="container">
+            <div class="canvas-container">
+                <canvas id="canvas" width="800" height="400"></canvas>
+            </div>
+            
+            <div class="info-panel">
+                <h3>📊 Estadísticas</h3>
+                <div class="stat">
+                    <span class="stat-label">Elementos</span>
+                    <span class="stat-value" id="element-count">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Frame</span>
+                    <span class="stat-value" id="frame-count">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">FPS</span>
+                    <span class="stat-value" id="fps">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Sync Time</span>
+                    <span class="stat-value" id="sync-time">0ms</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Bundle Size</span>
+                    <span class="stat-value" id="bundle-size">-</span>
+                </div>
+                
+                <h3 style="margin-top: 1rem;">🎨 Elementos</h3>
+                <div class="elements-list" id="elements-list"></div>
+                
+                <h3 style="margin-top: 1rem;">📝 Log</h3>
+                <div class="log" id="log"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // State
+        let elements = [];
+        let frameCount = 0;
+        let lastFpsUpdate = Date.now();
+        let fps = 0;
+        let fpsCount = 0;
+        let animationRunning = false;
+        let animationId = null;
+        
+        // Colors for elements
+        const colors = [
+            '#00d4ff', '#ff6b6b', '#4ade80', '#fbbf24', 
+            '#a78bfa', '#f472b6', '#22d3ee', '#86efac'
+        ];
+        
+        // Logging
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            
+            // Keep only last 50 entries
+            while (logEl.children.length > 50) {
+                logEl.removeChild(logEl.firstChild);
+            }
+        }
+        
+        // Update stats display
+        function updateStats(data) {
+            document.getElementById('element-count').textContent = data.elements || 0;
+            document.getElementById('frame-count').textContent = data.frame || 0;
+            document.getElementById('fps').textContent = fps.toFixed(1);
+            document.getElementById('sync-time').textContent = (data.sync_time || 0).toFixed(2) + 'ms';
+            
+            if (data.adapter_type) {
+                document.getElementById('adapter-type').textContent = data.adapter_type;
+            }
+            
+            if (data.bundle_size) {
+                const size = data.bundle_size;
+                document.getElementById('bundle-size').textContent = 
+                    size > 1000000 ? (size / 1024 / 1024).toFixed(1) + ' MB' : 
+                    (size / 1024).toFixed(0) + ' KB';
+            }
+        }
+        
+        // Render elements on canvas
+        function render(elements) {
+            ctx.fillStyle = '#0a0a12';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+            
+            // Elements
+            elements.forEach((el, i) => {
+                ctx.fillStyle = colors[i % colors.length] + '80';
+                ctx.strokeStyle = colors[i % colors.length];
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                ctx.roundRect(el.x, el.y, el.w, el.h, 8);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Label
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(el.id, el.x + 8, el.y + 20);
+            });
+        }
+        
+        // Update elements list UI
+        function updateElementsList(elements) {
+            const listEl = document.getElementById('elements-list');
+            listEl.innerHTML = elements.map(el => 
+                `<div class="element-item">
+                    <span>${el.id}</span>
+                    <span>${el.x.toFixed(0)},${el.y.toFixed(0)}</span>
+                </div>`
+            ).join('');
+        }
+        
+        // Fetch sync from server
+        async function sync() {
+            const startTime = performance.now();
+            
+            try {
+                const response = await fetch('/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ elements: elements })
+                });
+                
+                const data = await response.json();
+                const syncTime = performance.now() - startTime;
+                
+                data.sync_time = syncTime;
+                updateStats(data);
+                render(data.elements);
+                updateElementsList(data.elements);
+                
+                frameCount++;
+                fpsCount++;
+                
+                const now = Date.now();
+                if (now - lastFpsUpdate >= 1000) {
+                    fps = fpsCount;
+                    fpsCount = 0;
+                    lastFpsUpdate = now;
+                    document.getElementById('fps').textContent = fps.toFixed(1);
+                }
+                
+            } catch (error) {
+                log('Error en sync: ' + error.message, 'error');
+            }
+            
+            if (animationRunning) {
+                animationId = requestAnimationFrame(sync);
+            }
+        }
+        
+        // API Functions
+        async function addElement() {
+            const id = 'elem-' + (elements.length + 1);
+            elements.push({
+                id: id,
+                x: 50 + Math.random() * 200,
+                y: 50 + Math.random() * 200,
+                w: 60 + Math.random() * 80,
+                h: 40 + Math.random() * 60
+            });
+            
+            await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    index: elements.length - 1, 
+                    id: id,
+                    metadata: { tag: 'div', classes: ['element'] }
+                })
+            });
+            
+            log(`Elemento ${id} agregado`, 'info');
+            sync();
+        }
+        
+        async function removeElement() {
+            if (elements.length === 0) return;
+            
+            const id = elements.pop().id;
+            
+            await fetch('/unregister', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: elements.length })
+            });
+            
+            log(`Elemento ${id} removido`, 'info');
+            sync();
+        }
+        
+        async function resetElements() {
+            elements = [];
+            frameCount = 0;
+            fps = 0;
+            
+            await fetch('/reset', { method: 'POST' });
+            
+            log('Reset completo', 'info');
+            
+            ctx.fillStyle = '#0a0a12';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            updateStats({ elements: 0, frame: 0, adapter_type: 'LightWASM' });
+            updateElementsList([]);
+        }
+        
+        function startAnimation() {
+            if (animationRunning) return;
+            animationRunning = true;
+            log('Animación iniciada', 'info');
+            sync();
+        }
+        
+        function stopAnimation() {
+            animationRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            log('Animación detenida', 'warn');
+        }
+        
+        // Initialize
+        async function init() {
+            log('Inicializando Aetheris M1...', 'info');
+            
+            try {
+                const response = await fetch('/init');
+                const data = await response.json();
+                
+                updateStats({
+                    elements: 0,
+                    frame: 0,
+                    adapter_type: data.adapter_type || 'LightWASM',
+                    bundle_size: data.bundle_size
+                });
+                
+                log(`Adapter: ${data.adapter_type}`, 'info');
+                log(`Bundle: ${(data.bundle_size / 1024).toFixed(0)} KB`, 'info');
+                
+                // Initial render
+                ctx.fillStyle = '#0a0a12';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+            } catch (error) {
+                log('Error inicializando: ' + error.message, 'error');
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
