@@ -11,7 +11,7 @@ These classes provide type-safe configuration for UI elements
 without affecting runtime performance.
 """
 
-from typing import TypedDict, NotRequired, Literal, Any
+from typing import TypedDict, NotRequired, Literal, Any, Dict
 
 class Position2D(TypedDict):
     """2D position coordinates."""
@@ -36,7 +36,7 @@ class ElementConfig(TypedDict, total=False):
     size: Size2D
     color: ColorRGBA
     z_index: int
-    metadata: dict[str, any]
+    metadata: Dict[str, Any]
 
 class SmartPanelConfig(ElementConfig):
     """Configuration for SmartPanel elements."""
@@ -55,7 +55,6 @@ class TextConfig(ElementConfig):
     content: str
     font_size: float
     font_family: str
-    color: ColorRGBA
 
 class AnimationConfig(TypedDict):
     """Animation configuration."""

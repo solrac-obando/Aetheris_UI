@@ -18,6 +18,7 @@ This ensures OS has enough headroom and FPS stay locked at 60 without fluctuatio
 """
 import os
 import multiprocessing
+from typing import Optional, Dict, Any
 
 try:
     import psutil
@@ -38,7 +39,7 @@ def get_cpu_count() -> int:
 
 def get_optimal_max_elements(
     base_per_thread: int = 800,
-    cpu_count: int = None,
+    cpu_count: Optional[int] = None,
     safety_margin: float = SAFETY_MARGIN
 ) -> int:
     """
@@ -80,7 +81,7 @@ def get_optimal_batch_size(max_elements: int) -> int:
     return max(max_elements // 10, 100)
 
 
-def get_theoretical_capacity(cpu_count: int = None) -> int:
+def get_theoretical_capacity(cpu_count: Optional[int] = None) -> int:
     """Get theoretical maximum without safety margin."""
     if cpu_count is None:
         cpu_count = get_cpu_count()
@@ -95,14 +96,14 @@ def get_bridge_limit_from_engine(engine_limit: int, multiplier: float = 3.0) -> 
     return int(engine_limit * multiplier)
 
 
-def is_performance_mode(cpu_count: int = None) -> bool:
+def is_performance_mode(cpu_count: Optional[int] = None) -> bool:
     """Check if system should run in performance mode."""
     if cpu_count is None:
         cpu_count = get_cpu_count()
     return cpu_count >= 8
 
 
-def get_system_profile() -> dict:
+def get_system_profile() -> Dict[str, Any]:
     """
     Get complete system profile for resource allocation.
     

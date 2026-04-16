@@ -63,3 +63,18 @@ addopts = "--ignore=tests_stress/"
 markers = [
     "core: core functional tests (included in public release)",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+# --- Strict Mode Toggle ---
+# Descomenta las siguientes líneas para activar la validación estricta (M8 Final)
+# strict = true
+# disallow_untyped_defs = true
+# warn_return_any = true
+# no_implicit_optional = true
+

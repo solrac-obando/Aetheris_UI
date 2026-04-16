@@ -87,6 +87,11 @@ class AetherEngine:
         self._batch_targets: Optional[np.ndarray] = None
         self._batch_forces: Optional[np.ndarray] = None
         self._batch_dirty = True
+        
+        # M16: Status arrays (vectorized status tracking)
+        self._static_mask: Optional[np.ndarray] = None
+        self._sleep_mask: Optional[np.ndarray] = None
+        self._sleep_epsilons: Optional[np.ndarray] = None
 
     @property
     def audio_bridge(self):
@@ -104,6 +109,15 @@ class AetherEngine:
             self._batch_targets = np.zeros((n, 4), dtype=np.float32)
             self._batch_forces = np.zeros((n, 4), dtype=np.float32)
             self._batch_dirty = True
+            
+            # HPC Categorization (M16)
+            self._static_mask = np.zeros(n, dtype=bool)
+            self._sleep_mask = np.zeros(n, dtype=bool)
+            self._sleep_epsilons = np.zeros(n, dtype=np.float32)
+            
+            for i, elem in enumerate(self._elements):
+                self._static_mask[i] = getattr(elem, 'is_static', False)
+                self._sleep_epsilons[i] = getattr(elem, 'sleep_epsilon', 0.05)
 
     def _sync_to_batch(self) -> None:
         """Copy StateTensor data into batch arrays for parallel processing.
@@ -237,22 +251,75 @@ class AetherEngine:
         if use_batch:
             self._ensure_batch_buffers(n_elements)
 
-            # Compute targets for all elements (Python loop — unavoidable for asymptote calculation)
-            for idx, element in enumerate(self._elements):
-                target = element.calculate_asymptotes(win_w, win_h)
+            states_view = self._batch_states[:n_elements]
+            velocities_view = self._batch_velocities[:n_elements]
+
+            # 1. Selective Sync (Baldor Principles: Eliminate redundant group movements)
+            # Only sync elements that are NOT static. Static objects are immutable in the physics loop.
+            non_static_indices = np.where(~self._static_mask[:n_elements])[0]
+            pending_accel_mask = np.zeros(n_elements, dtype=bool)
+            
+            for i in non_static_indices:
+                elem = self._elements[i]
+                states_view[i] = elem.tensor.state
+                velocities_view[i] = elem.tensor.velocity
+                if np.any(elem.tensor.acceleration != 0):
+                    pending_accel_mask[i] = True
+
+            # 2. Vectorized Sleep Check (M16/Precálculo: v^2 < eps^2)
+            v_sq = (velocities_view[:, 0]**2 + velocities_view[:, 1]**2)
+            
+            # Additional wake up: Being dragged
+            drag_mask = np.zeros(n_elements, dtype=bool)
+            if self.input_manager.is_dragging and self.input_manager.dragged_element_index is not None:
+                drag_idx = self.input_manager.dragged_element_index
+                if 0 <= drag_idx < n_elements:
+                    drag_mask[drag_idx] = True
+
+            # Un elemento solo puede dormir si (vel < eps) Y NO tiene aceleración pendiente Y NO es arrastrado
+            # Baldor: "La inercia se rompe con cualquier término de fuerza o interacción externa"
+            self._sleep_mask[:n_elements] = (v_sq < self._sleep_epsilons[:n_elements]**2) & (~pending_accel_mask) & (~drag_mask)
+
+            active_mask = ~(self._static_mask[:n_elements] | self._sleep_mask[:n_elements])
+            active_indices = np.where(active_mask)[0]
+            
+            # Cache window size for asymptote logic (M16/Baldor: simplify by caching)
+            win_changed = not hasattr(self, '_prev_win_size') or self._prev_win_size != (win_w, win_h)
+            self._prev_win_size = (win_w, win_h)
+            
+            # Select indices to process: if window changes, everyone needs a new target
+            if win_changed:
+                processing_indices = np.arange(n_elements)
+            else:
+                processing_indices = active_indices
+
+            # 4. Target Calculation (Only for those moving or on window change)
+            for idx in processing_indices:
+                element = self._elements[idx]
+                element.is_sleeping = False
+                
+                # Baldor's Principle: "Simplify the work by reusing known values"
+                if win_changed or not hasattr(element, '_cached_target'):
+                    target = element.calculate_asymptotes(win_w, win_h)
+                    element._cached_target = target
+                else:
+                    target = element._cached_target
+
                 if hasattr(element, '_override_asymptote'):
                     target = self.state_manager.lerp_arrays(target, element._override_asymptote, 0.1)
                 self._batch_targets[idx] = target
 
-            # Sync state/velocity to batch (OPTIMIZED: vectorized NaN/Inf sanitization)
-            # Mathematical precision: Direct NumPy operations preserve float32 precision
-            # Using boolean masking instead of element-by-element loops
-            states_view = self._batch_states[:n_elements]
-            velocities_view = self._batch_velocities[:n_elements]
-            
-            for i, elem in enumerate(self._elements):
-                states_view[i] = elem.tensor.state
-                velocities_view[i] = elem.tensor.velocity
+            # 5. Handle targets for inactive ones (Snap to current state)
+            if not win_changed:
+                inactive_mask = ~active_mask[:n_elements]
+                if inactive_mask.any():
+                    self._batch_targets[:n_elements][inactive_mask] = states_view[inactive_mask]
+                    # Update object attribute for external visibility
+                    # Baldor: "Group similar terms to minimize operations"
+                    # We ONLY update sleep status for non-static elements detected as sleeping
+                    sleeping_indices = np.where(self._sleep_mask[:n_elements])[0]
+                    for idx in sleeping_indices:
+                        self._elements[idx].is_sleeping = True
             
             # Aether-Guard: Vectorized NaN/Inf sanitization (preserves 100% precision)
             # Valid elements remain unchanged; invalid elements get reset to zeros
@@ -264,13 +331,14 @@ class AetherEngine:
             if nan_mask_vel.any():
                 velocities_view[nan_mask_vel] = np.float32(0.0)
 
-            # Check if all elements use the same stiffness (fast path)
+            # Check if all ACTIVE elements use the same stiffness
             uniform_stiffness = True
             stiffness = self._default_stiffness
-            for idx, element in enumerate(self._elements):
-                s = self._default_stiffness
-                if hasattr(element, '_stiffness'):
-                    s = element._stiffness
+            active_indices = np.where(active_mask)[0]
+            for idx in active_indices:
+                element = self._elements[idx]
+                # Default to _default_stiffness if not set
+                s = getattr(element, '_stiffness', self._default_stiffness)
                 if s != stiffness:
                     uniform_stiffness = False
                     break
@@ -283,12 +351,13 @@ class AetherEngine:
                 )
             else:
                 # Slow path: per-element stiffness
-                for idx, element in enumerate(self._elements):
-                    s = self._default_stiffness
-                    if hasattr(element, '_stiffness'):
-                        s = element._stiffness
-                    self._batch_forces[idx] = solver.calculate_restoring_force(
-                        self._batch_states[idx], self._batch_targets[idx], float(s)
+                for idx in active_indices:
+                    element = self._elements[idx]
+                    s = getattr(element, '_stiffness', self._default_stiffness)
+                    cast(np.ndarray, self._batch_forces)[idx] = solver.calculate_restoring_force(
+                        cast(np.ndarray, self._batch_states)[idx], 
+                        cast(np.ndarray, self._batch_targets)[idx], 
+                        float(s)
                     )
 
             # Add boundary forces (parallel batch)
@@ -297,6 +366,12 @@ class AetherEngine:
                 self._batch_states, float(win_w), float(win_h), 0.5, boundary_forces
             )
             self._batch_forces += boundary_forces
+            
+            # M16: Aplicar Máscara Booleana (Anular Fuerzas en Dormidos)
+            inactive_mask = ~active_mask
+            if inactive_mask.any():
+                self._batch_forces[inactive_mask] = 0.0
+                self._batch_velocities[inactive_mask] = 0.0
 
             # Handle drag override
             if self.input_manager.is_dragging and self.input_manager.dragged_element_index is not None:
@@ -314,13 +389,42 @@ class AetherEngine:
                 max(self._dt, 0.001), active_viscosity, 5000.0
             )
 
-            # Write back (OPTIMIZED: direct slice assignment preserving 100% precision)
-            for i, elem in enumerate(self._elements):
+            # Write back ONLY ACTIVE (Massive optimization for M16)
+            for i in active_indices:
+                elem = self._elements[i]
                 elem.tensor.state[:] = self._batch_states[i]
                 elem.tensor.velocity[:] = self._batch_velocities[i]
         else:
             # Original per-element loop (for small element counts or WASM)
             for idx, element in enumerate(self._elements):
+                if hasattr(element, 'is_static'):
+                    if element.is_static:
+                        element.tensor.velocity[:] = 0.0
+                        continue
+                        
+                    # WAKE UP if there is pending acceleration or drag
+                    pending_accel = np.any(element.tensor.acceleration != 0)
+                    is_dragged = (self.input_manager.is_dragging and self.input_manager.dragged_element_index == idx)
+                    
+                    if pending_accel or is_dragged:
+                        element.is_sleeping = False
+
+                    if element.is_sleeping:
+                        vel_mag = np.linalg.norm(element.tensor.velocity)
+                        # Solo puede seguir durmiendo si no hay aceleración
+                        if vel_mag < element.sleep_epsilon and not pending_accel:
+                            element.tensor.velocity[:] = 0.0
+                            continue
+                        else:
+                            element.is_sleeping = False
+                    else:
+                        vel_mag = np.linalg.norm(element.tensor.velocity)
+                        # Solo entra en sleep si vel < eps Y NO hay aceleración pendiente Y NO es arrastrado
+                        if vel_mag < element.sleep_epsilon and not pending_accel and not is_dragged:
+                            element.is_sleeping = True
+                            element.tensor.velocity[:] = 0.0
+                            continue
+
                 target = element.calculate_asymptotes(win_w, win_h)
 
                 if hasattr(element, '_override_asymptote'):

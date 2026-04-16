@@ -10,7 +10,7 @@ Useful for development and debugging.
 """
 import sys
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 from ..base_plugin import AetherLogPlugin
 
@@ -40,7 +40,7 @@ class ConsolePlugin(AetherLogPlugin):
     
     def __init__(
         self,
-        stream: Optional[object] = None,
+        stream: Any = None,
         colorize: bool = True,
         format: Optional[str] = None
     ):

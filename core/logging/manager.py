@@ -133,14 +133,7 @@ class AetherLogger:
 
 
 def get_logger(name: str) -> AetherLogger:
-    """Get or create a logger by name.
-    
-    Args:
-        name: The name for the logger.
-    
-    Returns:
-        A new AetherLogger instance.
-    """
+    """Get or create a logger by name."""
     return AetherLogger(name)
 
 
@@ -154,16 +147,7 @@ def init_framework_logging(
     default_level: str = "INFO",
     create_default_plugins: bool = True
 ) -> None:
-    """Initialize framework logging with default configuration.
-    
-    This is called automatically when importing from core.logging,
-    but can be called manually to customize configuration.
-    
-    Args:
-        log_dir: Directory to store log files (default: "logs")
-        default_level: Default log level (default: "INFO")
-        create_default_plugins: If True, creates StandardFilePlugin automatically
-    """
+    """Initialize framework logging with default configuration."""
     from .plugins import StandardFilePlugin
     
     log_path = Path(log_dir)

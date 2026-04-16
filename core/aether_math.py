@@ -6,6 +6,7 @@
 
 import numpy as np
 import warnings
+from typing import Optional
 
 
 # ============================================================================
@@ -166,7 +167,7 @@ class StateTensor:
         # L2 Norm clamping for acceleration
         self.acceleration = clamp_magnitude(self.acceleration, MAX_ACCELERATION)
 
-    def euler_integrate(self, dt: float, viscosity: float = 0.1, target_state: np.ndarray = None):
+    def euler_integrate(self, dt: float, viscosity: float = 0.1, target_state: Optional[np.ndarray] = None) -> None:
         """Update physics state using Euler integration.
 
         1. Aether-Guard: Validate dt with safe_divide

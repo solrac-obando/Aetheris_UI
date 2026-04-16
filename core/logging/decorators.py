@@ -10,7 +10,7 @@ Provides granular logging control for specific functions and code blocks.
 """
 import functools
 import logging
-from typing import Optional, Callable, Union
+from typing import Optional, Callable, Union, List
 from contextlib import contextmanager
 
 from .manager import AetherLogger
@@ -118,7 +118,7 @@ class LogCapture:
     
     def __init__(self, logger: AetherLogger):
         self.logger = logger
-        self.messages = []
+        self.messages: List[str] = []
         self._original_dispatch = logger._dispatch
         self._capturing = False
     
@@ -131,11 +131,11 @@ class LogCapture:
         def capture_dispatch(level, msg, *args, **kwargs):
             self.messages.append(msg)
         
-        self.logger._dispatch = capture_dispatch
+        setattr(self.logger, "_dispatch", capture_dispatch)
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.logger._dispatch = self._original_dispatch
+        setattr(self.logger, "_dispatch", self._original_dispatch)
         self._capturing = False
         return False
 

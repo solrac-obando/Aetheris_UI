@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "crates/aether-math",
+    "crates/aether-core",
+    "crates/aether-bin",
+    "crates/aether-pyo3",
+]
+resolver = "2"

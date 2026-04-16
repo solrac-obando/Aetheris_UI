@@ -26,14 +26,14 @@ if HAS_NUMBA:
         if T_sec < 0.001:
             T_sec = 0.001
         k = 16.0 / (T_sec * T_sec)
-        return np.float32(min(k, 10000.0))
+        return float(min(k, 10000.0))
 
     @njit(cache=True)
     def _speed_to_viscosity(transition_time_ms: float) -> float:
         if transition_time_ms <= 0.0:
             return 0.1
         viscosity = 1.0 - (transition_time_ms / 1000.0)
-        return np.float32(max(0.05, min(viscosity, 0.95)))
+        return float(max(0.05, min(viscosity, 0.95)))
 else:
     def _speed_to_stiffness(transition_time_ms: float) -> float:
         if transition_time_ms <= 0.0:
@@ -42,13 +42,13 @@ else:
         if T_sec < 0.001:
             T_sec = 0.001
         k = 16.0 / (T_sec * T_sec)
-        return np.float32(min(k, 10000.0))
+        return float(min(k, 10000.0))
 
     def _speed_to_viscosity(transition_time_ms: float) -> float:
         if transition_time_ms <= 0.0:
             return 0.1
         viscosity = 1.0 - (transition_time_ms / 1000.0)
-        return np.float32(max(0.05, min(viscosity, 0.95)))
+        return float(max(0.05, min(viscosity, 0.95)))
 
 
 class TensorCompiler:

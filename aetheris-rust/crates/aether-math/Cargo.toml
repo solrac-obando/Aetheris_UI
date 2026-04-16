@@ -1,0 +1,8 @@
+[package]
+name = "aether-math"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Pure mathematics core for Aetheris UI — zero external dependencies"
+
+[dependencies]

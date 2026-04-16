@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aetheris Fraud-Watch 2000 - Professional HPC Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #020205;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: #e0e0e0;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            background: rgba(10, 10, 18, 0.7);
+            backdrop-filter: blur(12px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #020205;
+            z-index: 2000;
+            transition: opacity 0.8s ease;
+        }
+        #loading-screen.hidden { opacity: 0; pointer-events: none; }
+        
+        .loading-title {
+            font-size: 2.5rem; font-weight: 300;
+            letter-spacing: 0.4em;
+            color: #ff2d55;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 30px rgba(255,45,85,0.4);
+        }
+        .loading-bar-container {
+            width: 400px; height: 1px;
+            background: rgba(255,255,255,0.1);
+            overflow: hidden; margin-bottom: 1rem;
+        }
+        .loading-bar {
+            height: 100%; width: 0%;
+            background: #ff2d55;
+            transition: width 0.3s ease;
+        }
+        .loading-status {
+            font-size: 0.7rem; color: #666;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Header / Search */
+        #header {
+            position: fixed; top: 0; left: 0; right: 0;
+            height: 70px; display: flex; align-items: center;
+            padding: 0 32px; z-index: 1000;
+            justify-content: space-between;
+        }
+        .logo { font-weight: 800; letter-spacing: 2px; color: #fff; font-size: 1.2rem; }
+        .logo span { color: #ff2d55; }
+        
+        .search-container {
+            width: 500px; position: relative;
+        }
+        .search-input {
+            width: 100%; background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 20px; border-radius: 30px;
+            color: #fff; font-size: 0.9rem; outline: none;
+            transition: all 0.3s;
+        }
+        .search-input:focus { border-color: #ff2d55; background: rgba(255,255,255,0.1); }
+
+        /* Canvas */
+        #fraud-canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100vw; height: 100vh; cursor: crosshair;
+        }
+
+        /* Side Panel */
+        #inspector {
+            position: fixed; top: 90px; right: 32px;
+            width: 320px; bottom: 32px;
+            border-radius: 20px; padding: 24px;
+            display: flex; flex-direction: column; gap: 20px;
+            z-index: 1000; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transform: translateX(380px);
+        }
+        #inspector.active { transform: translateX(0); }
+        .inspector-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; }
+        .data-row { display: flex; flex-direction: column; gap: 4px; }
+        .data-label { font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .data-value { font-size: 0.95rem; color: #fff; font-family: 'JetBrains Mono', monospace; }
+        .risk-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; align-self: flex-start; margin-top: 4px; }
+        .risk-high { background: rgba(255,45,85,0.2); color: #ff2d55; border: 1px solid #ff2d55; }
+        .risk-med { background: rgba(255,107,53,0.2); color: #ff6b35; border: 1px solid #ff6b35; }
+        .risk-low { background: rgba(52,199,89,0.2); color: #34c759; border: 1px solid #34c759; }
+
+        .actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+        .btn-action { width: 100%; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: 0.2s; }
+        .btn-block { background: #ff2d55; color: #fff; }
+        .btn-block:hover { background: #ff4d6x; }
+        .btn-flag { background: transparent; border: 1px solid #ff2d55; color: #ff2d55; }
+        .btn-flag:hover { background: rgba(255,45,85,0.1); }
+
+        /* HUD Stats */
+        #hud-stats {
+            position: fixed; top: 90px; left: 32px;
+            width: 240px; border-radius: 20px; padding: 20px;
+            z-index: 1000;
+        }
+
+        /* Tooltip */
+        #quick-tooltip {
+            position: fixed; padding: 8px 12px; border-radius: 8px;
+            background: rgba(0,0,0,0.8); color: #fff; font-size: 0.75rem;
+            pointer-events: none; z-index: 2000; display: none;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Cluster Labels */
+        .cluster-label {
+            position: absolute; pointer-events: none;
+            color: rgba(255,45,85,0.6); font-size: 0.65rem;
+            font-weight: 800; text-transform: uppercase;
+            letter-spacing: 2px; white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header id="header" class="glass">
+        <div class="logo">AETHERIS <span>FRAUD-WATCH</span></div>
+        <div class="search-container">
+            <input type="text" class="search-input" id="search-input" placeholder="Search Source IP or Target Account...">
+        </div>
+        <div class="user-info" style="font-size: 0.8rem; color: #888;">Admin: 0xCarlos</div>
+    </header>
+
+    <div id="loading-screen">
+        <div class="loading-title">FRAUD-WATCH 2000</div>
+        <div class="loading-bar-container">
+            <div class="loading-bar" id="loading-bar"></div>
+        </div>
+        <div class="loading-status" id="loading-status">Initializing HPC Hybrid Engine...</div>
+    </div>
+
+    <!-- Main Viewport -->
+    <canvas id="fraud-canvas"></canvas>
+    <div id="quick-tooltip"></div>
+
+    <div id="hud-stats" class="glass">
+        <div class="inspector-title">ENGINE STATE</div>
+        <div class="data-row" style="margin-bottom: 20px;">
+            <div class="data-label">Active Nodes</div>
+            <div class="data-value" id="hud-nodes">0</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">FPS</div>
+            <div class="data-value" id="stat-fps">0</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">Detection Reliability</div>
+            <div class="data-value" style="color: #34c759;">99.8%</div>
+        </div>
+        <div style="margin-top: 24px;">
+             <button class="btn-action btn-block" style="background:#555;" id="reset-btn">Reset Cluster Positions</button>
+        </div>
+    </div>
+
+    <!-- Inspector Sidebar -->
+    <div id="inspector" class="glass">
+        <div class="inspector-title">TRANSACTION DETAIL</div>
+        <div class="data-row">
+            <div class="data-label">Transaction ID</div>
+            <div class="data-value" id="ins-id">#000000</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">Source IP</div>
+            <div class="data-value" id="ins-ip">0.0.0.0</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">Target Account</div>
+            <div class="data-value" id="ins-acc">ACC-00000</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">Amount In USD</div>
+            <div class="data-value" id="ins-amt" style="font-size:1.1rem; color:#34c759;">$ 0.00</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">Risk Assessment</div>
+            <div id="ins-risk" class="risk-badge risk-low">LOW RISK</div>
+        </div>
+        <div class="data-row">
+            <div class="data-label">Fraud Score</div>
+            <div class="data-value" id="ins-score">0.00%</div>
+            <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; margin-top:4px;">
+                <div id="ins-score-bar" style="height:100%; width:0%; background:#ff2d55; border-radius:2px;"></div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn-action btn-flag" onclick="flagNode()">MARK FOR REVIEW</button>
+            <button class="btn-action btn-block" onclick="blockNode()">BLOCK SOURCE IP</button>
+        </div>
+        <div id="inspector-footer" style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 10px; color: #444; text-align: center; letter-spacing: 1px;">
+            AETHERIS CORE v1.0.1-HPC | ENGINE EDITION
+        </div>
+    </div>
+
+    <!-- Notification Area -->
+    <div id="notification-area" style="position: fixed; bottom: 20px; right: 350px; z-index: 2000; display: flex; flex-direction: column; gap: 10px;"></div>
+
+    <script>
+    const canvas = document.getElementById('fraud-canvas');
+    const ctx = canvas.getContext('2d');
+    const loadingBar = document.getElementById('loading-bar');
+    const loadingStatus = document.getElementById('loading-status');
+    const inspector = document.getElementById('inspector');
+    const tooltip = document.getElementById('quick-tooltip');
+    const searchInput = document.getElementById('search-input');
+
+    // Physics constants
+    const SPRING_K = 0.15;
+    const FRAUD_SPRING_K = 0.55;
+    const DAMPING = 0.92;
+    const EPSILON = 0.5;
+    const DT = 1.0 / 60.0;
+
+    let N = 0;
+    let rawElements = [];
+    let selectedIndex = -1;
+    let hoveredIndex = -1;
+    let searchQuery = "";
+
+    // Physics State
+    let posX, posY, sizeW, sizeH;
+    let targetX, targetY, targetW, targetH;
+    let velX, velY, velW, velH;
+    let colorR, colorG, colorB, colorA;
+    let springK;
+    let isHighlighted; // Search/Filter state
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+
+    function setProgress(pct, status) {
+        loadingBar.style.width = pct + '%';
+        loadingStatus.textContent = status;
+    }
+
+    async function init() {
+        resize();
+        window.addEventListener('resize', resize);
+
+        setProgress(10, 'Fetching 2,000 transaction records...');
+        const res = await fetch('/api/fraud/elements');
+        const data = await res.json();
+        rawElements = data.elements;
+        N = rawElements.length;
+
+        document.getElementById('hud-nodes').textContent = N;
+
+        setProgress(50, 'Allocating GPU-Optimized Buffer...');
+        posX = new Float32Array(N); posY = new Float32Array(N);
+        sizeW = new Float32Array(N); sizeH = new Float32Array(N);
+        targetX = new Float32Array(N); targetY = new Float32Array(N);
+        targetW = new Float32Array(N); targetH = new Float32Array(N);
+        velX = new Float32Array(N); velY = new Float32Array(N);
+        velW = new Float32Array(N); velH = new Float32Array(N);
+        colorR = new Float32Array(N); colorG = new Float32Array(N);
+        colorB = new Float32Array(N); colorA = new Float32Array(N);
+        springK = new Float32Array(N);
+        isHighlighted = new Int8Array(N); // 1 = highlight, 0 = normal, -1 = dimmed
+
+        const W = window.innerWidth, H = window.innerHeight;
+        const clusterTargets = [];
+        for (let c = 0; c < 10; c++) {
+            clusterTargets.push({
+                x: W * 0.2 + Math.random() * W * 0.6,
+                y: H * 0.2 + Math.random() * H * 0.6
+            });
+        }
+
+        const cols = 50;
+        for (let i = 0; i < N; i++) {
+            const e = rawElements[i];
+            const score = parseFloat(e.fraud_score);
+            const amt = parseFloat(e.amount);
+            const cid = parseInt(e.cluster_id);
+            const sz = 8 + (amt / 5000.0) * 35.0;
+            
+            const gx = (i % cols) * (W / cols) + (W/cols/2);
+            const gy = Math.floor(i / cols) * (H / (N / cols)) + (H/(N/cols)/2);
+            
+            posX[i] = gx + (Math.random()-0.5)*100;
+            posY[i] = gy + (Math.random()-0.5)*100;
+            sizeW[i] = sz; sizeH[i] = sz;
+            isHighlighted[i] = 0;
+
+            if (score > 0.7) {
+                colorR[i] = 1.0; colorG[i] = 0.1; colorB[i] = 0.2; colorA[i] = 0.9;
+            } else if (score > 0.4) {
+                colorR[i] = 1.0; colorG[i] = 0.5; colorB[i] = 0.1; colorA[i] = 0.8;
+            } else {
+                colorR[i] = 0.2; colorG[i] = 0.7; colorB[i] = 0.4; colorA[i] = 0.5;
+            }
+
+            if (cid >= 0) {
+                const ct = clusterTargets[cid];
+                targetX[i] = ct.x + (Math.random() - 0.5) * 150;
+                targetY[i] = ct.y + (Math.random() - 0.5) * 150;
+                springK[i] = FRAUD_SPRING_K;
+            } else {
+                targetX[i] = gx; targetY[i] = gy;
+                springK[i] = SPRING_K;
+            }
+            targetW[i] = sz; targetH[i] = sz;
+        }
+
+        setProgress(100, 'HPC Engine Active');
+        setTimeout(() => {
+            document.getElementById('loading-screen').classList.add('hidden');
+            requestAnimationFrame(loop);
+        }, 500);
+    }
+
+    function physicsTick() {
+        const W = canvas.width, H = canvas.height;
+        for (let i = 0; i < N; i++) {
+            const k = springK[i];
+            const fx = -k * (posX[i] - targetX[i]);
+            const fy = -k * (posY[i] - targetY[i]);
+            velX[i] = (velX[i] + fx * DT) * DAMPING;
+            velY[i] = (velY[i] + fy * DT) * DAMPING;
+            posX[i] += velX[i];
+            posY[i] += velY[i];
+
+            if (Math.abs(posX[i] - targetX[i]) < EPSILON && Math.abs(velX[i]) < EPSILON) { posX[i] = targetX[i]; velX[i] = 0; }
+            if (Math.abs(posY[i] - targetY[i]) < EPSILON && Math.abs(velY[i]) < EPSILON) { posY[i] = targetY[i]; velY[i] = 0; }
+        }
+    }
+
+    function render() {
+        ctx.fillStyle = '#020205';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < N; i++) {
+            const r = (colorR[i] * 255) | 0;
+            const g = (colorG[i] * 255) | 0;
+            const b = (colorB[i] * 255) | 0;
+            let a = colorA[i];
+
+            if (searchQuery && isHighlighted[i] === -1) a *= 0.1;
+            if (i === selectedIndex) {
+                 ctx.strokeStyle = '#fff';
+                 ctx.lineWidth = 2;
+                 ctx.strokeRect(posX[i]-2, posY[i]-2, sizeW[i]+4, sizeH[i]+4);
+            }
+            if (i === hoveredIndex) {
+                 ctx.shadowBlur = 15; ctx.shadowColor = `rgba(${r},${g},${b},0.8)`;
+            } else {
+                 ctx.shadowBlur = 0;
+            }
+
+            ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+            ctx.fillRect(posX[i], posY[i], sizeW[i], sizeH[i]);
+        }
+    }
+
+    let frameCount = 0, lastFpsTime = performance.now();
+    function loop() {
+        physicsTick();
+        render();
+        frameCount++;
+        const now = performance.now();
+        if (now - lastFpsTime >= 1000) {
+            document.getElementById('stat-fps').textContent = frameCount;
+            frameCount = 0; lastFpsTime = now;
+        }
+        requestAnimationFrame(loop);
+    }
+
+    // INTERACTION LOGIC
+    canvas.onmousemove = (e) => {
+        const x = e.clientX, y = e.clientY;
+        hoveredIndex = -1;
+        tooltip.style.display = 'none';
+
+        for (let i = 0; i < N; i++) {
+            if (x >= posX[i] && x <= posX[i] + sizeW[i] && y >= posY[i] && y <= posY[i] + sizeH[i]) {
+                hoveredIndex = i;
+                const data = rawElements[i];
+                tooltip.style.display = 'block';
+                tooltip.style.left = (x + 15) + 'px';
+                tooltip.style.top = (y + 15) + 'px';
+                tooltip.textContent = `ID: #${data.id} | Amt: $${data.amount} | Risk: ${(data.fraud_score*100).toFixed(0)}%`;
+                break;
+            }
+        }
+    };
+
+    canvas.onclick = (e) => {
+        if (hoveredIndex !== -1) {
+            showInspector(hoveredIndex);
+        } else {
+            inspector.classList.remove('active');
+            selectedIndex = -1;
+        }
+    };
+
+    function showInspector(idx) {
+        selectedIndex = idx;
+        const data = rawElements[idx];
+        inspector.classList.add('active');
+
+        document.getElementById('ins-id').textContent = '#' + data.id.toString().padStart(6, '0');
+        document.getElementById('ins-ip').textContent = data.source_ip;
+        document.getElementById('ins-acc').textContent = data.target_account;
+        document.getElementById('ins-amt').textContent = '$ ' + data.amount.toLocaleString();
+        document.getElementById('ins-score').textContent = (data.fraud_score * 100).toFixed(2) + '%';
+        document.getElementById('ins-score-bar').style.width = (data.fraud_score * 100) + '%';
+
+        const rb = document.getElementById('ins-risk');
+        rb.className = 'risk-badge';
+        if (data.fraud_score > 0.7) { rb.textContent = 'CRITICAL FRAUD'; rb.classList.add('risk-high'); }
+        else if (data.fraud_score > 0.4) { rb.textContent = 'SUSPICIOUS'; rb.classList.add('risk-med'); }
+        else { rb.textContent = 'LOW RISK'; rb.classList.add('risk-low'); }
+    }
+
+    searchInput.oninput = (e) => {
+        searchQuery = e.target.value.toLowerCase();
+        if (!searchQuery) {
+            for (let i = 0; i < N; i++) isHighlighted[i] = 0;
+            return;
+        }
+        for (let i = 0; i < N; i++) {
+            const data = rawElements[i];
+            if (data.source_ip.toLowerCase().includes(searchQuery) || data.target_account.toLowerCase().includes(searchQuery)) {
+                isHighlighted[i] = 1;
+            } else {
+                isHighlighted[i] = -1;
+            }
+        }
+    };
+
+    function showNotification(msg, type = 'info') {
+        const area = document.getElementById('notification-area');
+        const note = document.createElement('div');
+        note.style.background = type === 'risk' ? 'rgba(255, 69, 58, 0.9)' : 'rgba(10, 132, 255, 0.9)';
+        note.style.color = '#fff';
+        note.style.padding = '12px 24px';
+        note.style.borderRadius = '8px';
+        note.style.backdropFilter = 'blur(15px)';
+        note.style.border = '1px solid rgba(255,255,255,0.15)';
+        note.style.fontSize = '12px';
+        note.style.fontFamily = 'Inter, sans-serif';
+        note.style.fontWeight = '600';
+        note.style.boxShadow = '0 10px 40px rgba(0,0,0,0.6)';
+        note.style.opacity = '0';
+        note.style.transform = 'translateX(20px)';
+        note.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        
+        note.textContent = msg;
+        area.appendChild(note);
+        
+        setTimeout(() => {
+            note.style.opacity = '1';
+            note.style.transform = 'translateX(0)';
+        }, 50);
+        
+        setTimeout(() => {
+            note.style.opacity = '0';
+            note.style.transform = 'translateX(20px)';
+            setTimeout(() => note.remove(), 400);
+        }, 3500);
+    }
+
+    function flagNode() {
+        showNotification("Transaction #" + rawElements[selectedIndex].id + " flagged for human review.", 'info');
+    }
+
+    function blockNode() {
+        const ip = rawElements[selectedIndex].source_ip;
+        showNotification("IP " + ip + " blacklisted across Aetheris network.", 'risk');
+    }
+
+    document.getElementById('reset-btn').onclick = () => {
+        for(let i=0; i<N; i++) {
+            posX[i] = Math.random()*canvas.width;
+            posY[i] = Math.random()*canvas.height;
+        }
+    };
+
+    init();
+    </script>
+</body>
+</html>

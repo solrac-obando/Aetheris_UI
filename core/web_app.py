@@ -49,7 +49,7 @@ class _HybridHTTPHandler(http.server.SimpleHTTPRequestHandler):
         pass  # Suppress HTTP logs
 
 
-def _start_http_server(port: int, web_dir: str) -> http.server.HTTPServer:
+def _start_http_server(port: int, web_dir: str) -> socketserver.TCPServer:
     """Start HTTP server for the hybrid client in a background thread."""
     _HybridHTTPHandler._web_hybrid_dir = web_dir
     server = socketserver.TCPServer(("0.0.0.0", port + 1), _HybridHTTPHandler)
@@ -91,7 +91,7 @@ class WebApp:
         self.server = WebServer(port=ws_port)
         self._elements: List[WebElement] = []
         self._running = False
-        self._http_server = None
+        self._http_server: Optional[socketserver.TCPServer] = None
         self._loop_thread: Optional[threading.Thread] = None
 
         # Set up WebSocket message handler

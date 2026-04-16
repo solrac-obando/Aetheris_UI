@@ -35,6 +35,7 @@ Now features a **dual-engine architecture**: a pure Python engine and a **17.2x 
 ## Features
 
 - **🚀 Dual-Engine: Python + Rust** — Choose between pure Python or 17.2x faster Rust at runtime via `EngineSelector`. Automatic fallback if Rust is unavailable.
+- **🦾 Tipado Estático (M8)** — Integridad estructural garantizada mediante `typing.Protocol` (AetherEngineProtocol). Resolución de deuda técnica y cumplimiento de PEP 484.
 - **M1: WASM Ligero** (~200KB) — Lightweight WebAssembly adapter replacing Pyodide (40MB). Canvas 2D + WebGL support.
 - **M2: Batch Asymptotes** — 50,000 elements at 60 FPS with Numba JIT kernels + 35% safety margin.
 - **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers derived from physical state changes.
@@ -45,6 +46,7 @@ Now features a **dual-engine architecture**: a pure Python engine and a **17.2x 
 - **Dynamic Resource Limits** — Auto-detect hardware capabilities with 35% safety margin for stable 60 FPS.
 - **Zero External Math Dependencies** — Custom `Vec4` type in Rust, pure NumPy in Python. No linear algebra supply chain risk.
 - **HTML/CSS Hydration** — Declarative UI definition via `AetherHTMLParser`. Maps HTML tags and CSS-like attributes to physics properties.
+- **Repositorio Sanitizado** — Auditoría de tests de redundancia y exclusión estricta de archivos de sesión/ataque para despliegue público en GitHub.
 
 ---
 

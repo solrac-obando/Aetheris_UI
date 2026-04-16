@@ -5,132 +5,39 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 
 """
-Protocol definitions for Aetheris.
-
-These Protocols provide structural typing (duck typing) for type checkers
-while maintaining full backward compatibility with existing code.
+Protocols for Aetheris UI components.
+Provides structural typing (duck typing) for engines and other core parts.
 """
-
-from typing import Protocol, runtime_checkable, Any, Self
+from typing import Protocol, runtime_checkable, Any, Dict, Optional
 import numpy as np
 
-
 @runtime_checkable
-class Renderable(Protocol):
-    """Protocol for elements that can be rendered."""
+class AetherEngineProtocol(Protocol):
+    """Structural interface that any Aetheris physics engine must implement."""
     
     @property
-    def state(self) -> np.ndarray:
-        """Return the element's state array."""
-        ...
-    
-    def render(self, data: np.ndarray) -> None:
-        """Render the element with given data."""
-        ...
-
-
-@runtime_checkable  
-class PhysicsBody(Protocol):
-    """Protocol for elements with physics simulation."""
+    def element_count(self) -> int: ...
     
     @property
-    def position(self) -> tuple[float, float]:
-        """Return (x, y) position."""
-        ...
+    def dt(self) -> float: ...
     
     @property
-    def velocity(self) -> tuple[float, float]:
-        """Return (vx, vy) velocity."""
-        ...
-    
-    def apply_force(self, force: tuple[float, float]) -> None:
-        """Apply a force vector to the element."""
-        ...
-
-
-@runtime_checkable
-class Interactive(Protocol):
-    """Protocol for interactive elements that respond to input."""
-    
-    def on_click(self, x: float, y: float) -> None:
-        """Handle click event at coordinates."""
-        ...
-    
-    def on_hover(self, x: float, y: float) -> None:
-        """Handle hover event at coordinates."""
-        ...
-    
-    def on_drag(self, dx: float, dy: float) -> None:
-        """Handle drag event with delta."""
-        ...
-
-
-@runtime_checkable
-class StateContainer(Protocol):
-    """Protocol for elements that hold state."""
+    def state_manager(self) -> Any: ...
     
     @property
-    def state(self) -> np.ndarray:
-        """Return current state."""
-        ...
-    
-    @state.setter
-    def state(self, value: np.ndarray) -> None:
-        """Set new state."""
-        ...
-
-
-@runtime_checkable
-class Serializable(Protocol):
-    """Protocol for elements that can be serialized."""
-    
-    def to_dict(self) -> dict[str, Any]:
-        """Convert element to dictionary."""
-        ...
-    
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Create element from dictionary."""
-        ...
-
-
-@runtime_checkable
-class Clonable(Protocol):
-    """Protocol for elements that can be cloned."""
-    
-    def clone(self) -> Self:
-        """Create a deep copy of the element."""
-        ...
-
-
-@runtime_checkable
-class Disposable(Protocol):
-    """Protocol for elements that need cleanup."""
-    
-    def dispose(self) -> None:
-        """Clean up resources."""
-        ...
+    def input_manager(self) -> Any: ...
     
     @property
-    def disposed(self) -> bool:
-        """Check if element has been disposed."""
-        ...
-
-
-# Type aliases using protocols
-RenderableList = list[Renderable]
-PhysicsBodyList = list[PhysicsBody]
-InteractiveList = list[Interactive]
-
-__all__ = [
-    "Renderable",
-    "PhysicsBody", 
-    "Interactive",
-    "StateContainer",
-    "Serializable",
-    "Clonable",
-    "Disposable",
-    "RenderableList",
-    "PhysicsBodyList", 
-    "InteractiveList",
-]
+    def tensor_compiler(self) -> Any: ...
+    
+    def register_element(self, element: Any) -> None: ...
+    
+    def handle_pointer_down(self, x: float, y: float) -> None: ...
+    
+    def handle_pointer_move(self, x: float, y: float) -> None: ...
+    
+    def handle_pointer_up(self) -> None: ...
+    
+    def tick(self, win_w: float, win_h: float) -> np.ndarray: ...
+    
+    def get_ui_metadata(self) -> str: ...

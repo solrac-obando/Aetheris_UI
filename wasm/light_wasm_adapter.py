@@ -185,56 +185,54 @@ class LightWASMAdapter:
         return result
 
     def _sync_fallback(self, elements: List[Any]) -> str:
-        """Fallback sync implementation using Pyodide-compatible format."""
-        payload = {
-            "frame": self._sync_count,
-            "timestamp": self._last_sync_time,
-            "elements": [],
-        }
-
-        for idx, elem in enumerate(elements):
-            html_id = self._element_map.get(idx)
+        """Fallback sync implementation optimized for high-density payloads."""
+        import numpy as np
+        
+        n = len(elements)
+        # Fast extraction path
+        # Baldor's Principle: "Minimize dictionary overhead during tight loops"
+        element_list = []
+        
+        # Cache locals for speed
+        get_id = self._element_map.get
+        isfinite = math.isfinite
+        
+        for idx in range(n):
+            html_id = get_id(idx)
             if not html_id:
                 continue
-
+                
+            elem = elements[idx]
             try:
                 state = elem.tensor.state
-                x, y, w, h = (
-                    float(state[0]),
-                    float(state[1]),
-                    float(state[2]),
-                    float(state[3]),
-                )
-            except AttributeError:
+                x, y, w, h = state[0], state[1], state[2], state[3]
+            except (AttributeError, IndexError):
                 continue
 
-            if not (
-                self._is_finite(x)
-                and self._is_finite(y)
-                and self._is_finite(w)
-                and self._is_finite(h)
-            ):
+            if not (isfinite(x) and isfinite(y) and isfinite(w) and isfinite(h)):
                 continue
 
-            if abs(x) > 1e10 or abs(y) > 1e10 or abs(w) > 1e10 or abs(h) > 1e10:
+            if x < -1e6 or x > 1e6 or y < -1e6 or y > 1e6: # Fast range check
                 continue
 
+            # Clamping and rounding (Minimal operations)
             x = max(0.0, min(x, self._container_w - w))
             y = max(0.0, min(y, self._container_h - h))
 
-            if abs(x) > 1e9 or abs(y) > 1e9 or abs(w) > 1e9 or abs(h) > 1e9:
-                continue
-
-            payload["elements"].append({
+            element_list.append({
                 "id": html_id,
-                "x": round(x, 2),
-                "y": round(y, 2),
-                "w": round(w, 2),
-                "h": round(h, 2),
-                "z": getattr(elem, "_z_index", idx),
+                "x": float(round(x, 2)),
+                "y": float(round(y, 2)),
+                "w": float(round(w, 2)),
+                "h": float(round(h, 2)),
+                "z": int(getattr(elem, "_z_index", idx)),
             })
 
-        return json.dumps(payload)
+        return json.dumps({
+            "frame": self._sync_count,
+            "timestamp": self._last_sync_time,
+            "elements": element_list,
+        }, separators=(',', ':')) # Compact JSON is faster to generate and send
 
     def _is_finite(self, value: float) -> bool:
         import math

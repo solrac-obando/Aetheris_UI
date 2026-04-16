@@ -119,7 +119,7 @@ def speed_to_stiffness(transition_time_ms: float) -> float:
         T_sec = 0.001
     
     k = 16.0 / (T_sec * T_sec)
-    return np.float32(min(k, 10000.0))
+    return float(min(k, 10000.0))
 
 
 def speed_to_viscosity(transition_time_ms: float) -> float:
@@ -131,4 +131,4 @@ def speed_to_viscosity(transition_time_ms: float) -> float:
         return 0.1
     
     viscosity = 1.0 - (transition_time_ms / 1000.0)
-    return np.float32(max(0.05, min(viscosity, 0.95)))
+    return float(max(0.05, min(viscosity, 0.95)))

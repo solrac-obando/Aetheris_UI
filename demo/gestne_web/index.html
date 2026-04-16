@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aetheris GESTNE | Cluster Analytics</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</head>
+<body>
+    <div id="loader" class="loader-overlay">
+        <div class="spinner"></div>
+        <p>Iniciando Motor Aetheris WASM (M1)...</p>
+    </div>
+
+    <div class="glass-bg"></div>
+    
+    <nav class="sidebar">
+        <div class="brand">
+            <span class="logo">A</span>
+            <h1>GESTNE <span>WASM</span></h1>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card" id="card-metabolic">
+                <p class="label">Cluster Metabólico</p>
+                <div class="value-row">
+                    <h3 class="value" id="val-metabolic">--</h3>
+                    <div class="color-dot orange"></div>
+                </div>
+            </div>
+            <div class="metric-card" id="card-reproductive">
+                <p class="label">Cluster Reproductivo</p>
+                <div class="value-row">
+                    <h3 class="value" id="val-reproductive">--</h3>
+                    <div class="color-dot blue"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-panel">
+            <h3>Física del Sistema</h3>
+            <div class="stat-item">
+                <span>FPS</span>
+                <span id="stat-fps">--</span>
+            </div>
+            <div class="stat-item">
+                <span>Partículas</span>
+                <span id="stat-nodes">66</span>
+            </div>
+            <div class="stat-item">
+                <span>Motor</span>
+                <span id="stat-engine">Python 3.11</span>
+            </div>
+        </div>
+
+        <div class="controls-panel">
+            <button class="ctrl-btn active" id="btn-attract" onclick="setMode('attract')">Atraer</button>
+            <button class="ctrl-btn" id="btn-repel" onclick="setMode('repel')">Repeler</button>
+        </div>
+    </nav>
+
+    <main class="content">
+        <header>
+            <div class="header-info">
+                <h2>Análisis de Clusters: Cohorte SOP (N=66)</h2>
+                <p>Nodos Reactivos: Masa ∝ IMC | Vibración ∝ Insulina</p>
+            </div>
+            <div class="status-pill">Infraestructura M1 Activa</div>
+        </header>
+
+        <section class="physics-container">
+            <canvas id="canvas"></canvas>
+        </section>
+        
+        <section class="info-footer">
+            <p>Mueva el cursor para interactuar con las partículas clínicas.</p>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

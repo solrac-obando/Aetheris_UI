@@ -245,7 +245,7 @@ class SQLiteProvider(BaseAetherProvider):
         )
     """
     
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: Optional[str] = None):
         """
         Initialize the SQLite provider.
         
@@ -470,7 +470,7 @@ class RemoteAetherProvider(BaseAetherProvider):
         """Mark connection as closed."""
         self._connected = False
     
-    def _make_request(self, method: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _make_request(self, method: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Make a REST request to the server's db-bridge endpoint.
         

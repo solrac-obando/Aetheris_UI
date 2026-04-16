@@ -1,0 +1,15 @@
+[package]
+name = "aether-pyo3"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Python bindings for Aetheris UI physics engine (PyO3)"
+
+[lib]
+name = "aether_pyo3"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module"] }
+aether-math = { path = "../aether-math" }
+aether-core = { path = "../aether-core" }

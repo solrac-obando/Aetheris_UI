@@ -4,7 +4,7 @@
 # You may obtain a copy of the License at
 #     http://www.apache.org/licenses/LICENSE-2.0
 
-from typing import Any, Optional, Set
+from typing import Any, Optional, Set, Callable
 import weakref
 import gc
 
@@ -27,7 +27,7 @@ class Disposable:
         self._disposed = True
         self._run_cleanup()
 
-    def _register_cleanup(self, callback: callable) -> None:
+    def _register_cleanup(self, callback: Callable[[], None]) -> None:
         if not self._disposed:
             self._cleanup_callbacks.append(callback)
 
@@ -42,9 +42,8 @@ class Disposable:
     def __enter__(self) -> "Disposable":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.dispose()
-        return False
 
     @classmethod
     def get_disposed_count(cls) -> int:

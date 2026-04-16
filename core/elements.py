@@ -6,6 +6,7 @@
 
 from abc import ABC, abstractmethod
 import numpy as np
+from typing import Optional, Tuple, Any, Dict
 from core.aether_math import StateTensor
 from core.lifecycle import DisposableMixin
 
@@ -21,8 +22,16 @@ class DifferentialElement(DisposableMixin, ABC):
     - Context manager support (with element as e)
     """
     
-    def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0,
-                 sound_trigger=None):
+    def __init__(self, 
+                 x: float = 0.0, 
+                 y: float = 0.0, 
+                 w: float = 100.0, 
+                 h: float = 100.0, 
+                 color: Tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0), 
+                 z: int = 0,
+                 sound_trigger: Optional[str] = None, 
+                 is_static: bool = False, 
+                 sleep_epsilon: float = 0.05) -> None:
         """Initialize a differential element.
         
         Args:
@@ -32,6 +41,8 @@ class DifferentialElement(DisposableMixin, ABC):
             z: Z-index for rendering depth
             sound_trigger: Sound trigger spec, e.g. 'impact:0.8' or
                           'on:click_sound;off:release_sound' or 'settle'
+            is_static: If True, completely ignores physical integration
+            sleep_epsilon: Threshold velocity below which the element is put to sleep
         """
         DisposableMixin.__init__(self)
         self.tensor = StateTensor(x, y, w, h)
@@ -40,11 +51,16 @@ class DifferentialElement(DisposableMixin, ABC):
         self._sound_trigger = sound_trigger
         self._sound_triggered_this_frame = False
         self._prev_velocity_mag = 0.0
+        
+        # M16: Motor Estático & Sleep
+        self.is_static = is_static
+        self.is_sleeping = False
+        self.sleep_epsilon = sleep_epsilon
 
     def dispose(self) -> None:
         """Override dispose to clean up element-specific resources."""
-        self.tensor = None
-        self._color = None
+        self.tensor = None  # type: ignore
+        self._color = None  # type: ignore
         self._sound_trigger = None
         super().dispose()
 
@@ -220,7 +236,14 @@ class StaticBox(DifferentialElement):
     regardless of container size.
     """
     
-    def __init__(self, x, y, w, h, color=(1, 1, 1, 1), z=0, sound_trigger=None):
+    def __init__(self, 
+                 x: float, 
+                 y: float, 
+                 w: float, 
+                 h: float, 
+                 color: Tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0), 
+                 z: int = 0, 
+                 sound_trigger: Optional[str] = None) -> None:
         """Initialize a static box with fixed target rectangle.
         
         Args:
@@ -282,6 +305,28 @@ class SmartPanel(DifferentialElement):
         h = container_h * (1.0 - 2.0 * self._padding)
         
         return np.array([x, y, w, h], dtype=np.float32)
+
+
+class SmartThemePanel(SmartPanel):
+    """M15: A responsive panel that automatically uses a ThemeManager color.
+    
+    Dynamically loads the color from ThemeManager during init, and updates
+    upon calling update_theme().
+    """
+    
+    def __init__(self, theme_key: str = "primary", x: float = 0.0, y: float = 0.0, 
+                 w: float = 100.0, h: float = 100.0, z: int = 0, 
+                 padding: float = 0.05, sound_trigger: Optional[str] = None):
+        from core.theme_manager import ThemeManager
+        color = ThemeManager.get_color(theme_key)
+        super().__init__(x, y, w, h, color, z, padding, sound_trigger)
+        self.theme_key = theme_key
+        
+    def update_theme(self) -> None:
+        """Fetch the latest color from ThemeManager and update rendering data."""
+        from core.theme_manager import ThemeManager
+        new_color = ThemeManager.get_color(self.theme_key)
+        self._color = np.array(new_color, dtype=np.float32)
 
 
 class FlexibleTextNode(DifferentialElement):
