@@ -5,177 +5,277 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 
 """
-Input Manager - Bridges user pointer/touch input to the physics solver.
+Input Manager v2.0 - Multi-Touch & Advanced Gestures.
 
-Enables Drag, Drop, and Throw mechanics by converting DOM events into
-physics forces applied to specific elements.
+Bridges user pointer/touch input to the physics solver.
+Supports: Drag, Drop, Throw, Pinch-to-Zoom, Multi-finger Pan, and Swipe.
 
-Mathematical Foundation (Precálculo - Derivatives):
-Throw velocity is calculated using Second-Order Backward Difference:
-    v ≈ (3·P_current - 4·P_prev + P_prev2) / (2·dt)
-
-This formula is more accurate than naive (P_current - P_prev) / dt
-because it cancels out first-order error terms, preventing the "jittery
-throw" effect common in naive implementations.
+Mathematical Foundation:
+- Throw & Swipe velocity: Second-Order Backward Difference.
+- Pinch Scale: ΔDistance / InitialDistance
+- Panning: ΔCentroid
 """
 import numpy as np
+import time
 from collections import deque
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List, Any
 
 
 class InputManager:
-    """Manages pointer state and translates it into physics forces.
+    """Manages pointer state and translates it into physics forces and gestures.
     
-    When a user drags an element, a high-stiffness spring connects the
-    element's center to the mouse cursor. On release, the element's
-    velocity is set based on the pointer's recent movement history,
-    creating a natural "throw" effect.
+    Now supports multiple concurrent pointers for mobile-style interactions.
     """
     
     # Physics constants for drag interaction
-    DRAG_STIFFNESS = 5.0        # High stiffness for responsive dragging
-    DRAG_DAMPING = 0.3          # Extra damping during drag for stability
-    THROW_VELOCITY_SCALE = 1.0  # Scale factor for throw velocity
+    DRAG_STIFFNESS = 5.0
+    DRAG_DAMPING = 0.3
+    THROW_VELOCITY_SCALE = 1.0
+    
+    # Gesture constants
+    SWIPE_THRESHOLD_VEL = 500.0  # px/s
+    KINETIC_FRICTION = 0.95      # Velocity multiplier per frame
     
     # History buffer size for velocity calculation
-    HISTORY_SIZE = 5
+    HISTORY_SIZE = 10
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._is_dragging = False
         self._dragged_element_index: Optional[int] = None
-        self._pointer_x: float = 0.0
-        self._pointer_y: float = 0.0
         
-        # History for throw velocity calculation: deque of (x, y, timestamp)
+        # Pointer tracking: {pointer_id: (x, y, timestamp)}
+        self._pointers: Dict[int, Tuple[float, float, float]] = {}
+        
+        # History for gesture calculation
         self._position_history: deque = deque(maxlen=self.HISTORY_SIZE)
-    
+        
+        # Gesture state
+        self._initial_pinch_dist: Optional[float] = None
+        self._current_scale: float = 1.0
+        self._pan_offset: np.ndarray = np.zeros(2, dtype=np.float32)
+        
+        # Kinetic scroll state
+        self._kinetic_vel: np.ndarray = np.zeros(2, dtype=np.float32)
+        self._is_scrolling: bool = False
+
+    @property
+    def _pointer_x(self) -> float:
+        """Compatibility for old tests."""
+        if not self._pointers: return 0.0
+        return self._pointers[list(self._pointers.keys())[0]][0]
+
+    @_pointer_x.setter
+    def _pointer_x(self, value: float) -> None:
+        """Compatibility for old tests. Updates pointer ID 0."""
+        if 0 not in self._pointers:
+            self._pointers[0] = (value, 0.0, time.perf_counter())
+        else:
+            prev = self._pointers[0]
+            self._pointers[0] = (value, prev[1], prev[2])
+
+    @property
+    def _pointer_y(self) -> float:
+        """Compatibility for old tests."""
+        if not self._pointers: return 0.0
+        return self._pointers[list(self._pointers.keys())[0]][1]
+
+    @_pointer_y.setter
+    def _pointer_y(self, value: float) -> None:
+        """Compatibility for old tests. Updates pointer ID 0."""
+        if 0 not in self._pointers:
+            self._pointers[0] = (0.0, value, time.perf_counter())
+        else:
+            prev = self._pointers[0]
+            self._pointers[0] = (prev[0], value, prev[2])
+
     @property
     def is_dragging(self) -> bool:
-        """Whether a drag operation is currently active."""
         return self._is_dragging
-    
+
     @property
     def dragged_element_index(self) -> Optional[int]:
-        """Index of the element being dragged, or None."""
         return self._dragged_element_index
-    
-    def pointer_down(self, element_index: int, x: float, y: float, timestamp: float) -> None:
-        """
-        Start a drag operation on the specified element.
+
+    @property
+    def current_scale(self) -> float:
+        return self._current_scale
+
+    @property
+    def pan_offset(self) -> np.ndarray:
+        return self._pan_offset
+
+    def pointer_down(self, pointer_id: Any, x: float = 0.0, y: float = 0.0, 
+                     element_index: Any = None) -> None:
+        """Register a new pointer down event. Supports multi-touch and legacy API."""
+        real_id = pointer_id
+        real_x = x
+        real_y = y
+        real_idx = element_index
+        ts = None
+
+        # Legacy detection: if element_index was passed as float (likely timestamp)
+        if isinstance(element_index, float):
+            real_idx = pointer_id
+            real_id = 0
+            ts = element_index
+
+        if ts is None:
+            ts = time.perf_counter()
+            
+        self._pointers[real_id] = (float(real_x), float(real_y), ts)
         
-        Args:
-            element_index: Index of the element in the engine's registry
-            x: Pointer X position in screen coordinates
-            y: Pointer Y position in screen coordinates
-            timestamp: Current time in seconds (for velocity calculation)
-        """
-        self._is_dragging = True
-        self._dragged_element_index = element_index
-        self._pointer_x = float(x)
-        self._pointer_y = float(y)
+        # If it's the first pointer and an element was hit, start dragging
+        if len(self._pointers) == 1 and real_idx is not None:
+            self._is_dragging = True
+            self._dragged_element_index = real_idx
+            self._position_history.clear()
+            self._position_history.append((float(real_x), float(real_y), ts))
+            self._is_scrolling = False
+            self._kinetic_vel.fill(0)
+            
+        # Initialize pinch if we have 2 pointers
+        if len(self._pointers) == 2:
+            self._initial_pinch_dist = self._calculate_pointer_dist()
+            
+    def pointer_move(self, pointer_id: Any, x: float, y: Optional[float] = None, 
+                     timestamp: Optional[float] = None) -> None:
+        """Update pointer position and evaluate gestures.
         
-        # Clear history and start fresh
-        self._position_history.clear()
-        self._position_history.append((float(x), float(y), float(timestamp)))
-    
-    def pointer_move(self, x: float, y: float, timestamp: float) -> None:
+        Supports:
+        - New: pointer_move(id, x, y)
+        - Old: pointer_move(x, y, ts)
         """
-        Update pointer position during drag.
+        real_id = pointer_id
+        real_x = x
+        real_y = y
+        ts = timestamp
+
+        # Legacy detection:
+        if timestamp is not None or (y is not None and real_id not in self._pointers and 0 in self._pointers):
+            real_x = pointer_id
+            real_y = x
+            if timestamp is not None:
+                ts = timestamp
+            else:
+                ts = y # 3rd arg was likely ts in (x, y, ts)
+            real_id = 0
+            
+        if real_id not in self._pointers:
+            return
+            
+        if ts is None:
+            ts = time.perf_counter()
+            
+        prev_x, prev_y, prev_ts = self._pointers[real_id]
+        self._pointers[real_id] = (float(real_x), float(real_y), ts)
         
-        Args:
-            x: Pointer X position in screen coordinates
-            y: Pointer Y position in screen coordinates
-            timestamp: Current time in seconds
-        """
-        self._pointer_x = float(x)
-        self._pointer_y = float(y)
-        self._position_history.append((float(x), float(y), float(timestamp)))
-    
-    def pointer_up(self) -> None:
-        """End the drag operation."""
-        self._is_dragging = False
-        self._dragged_element_index = None
-    
+        # 1. Update Drag History
+        if self._is_dragging and real_id == list(self._pointers.keys())[0]:
+            self._position_history.append((float(real_x), float(real_y), ts))
+            
+        # 2. Pinch Gesture (Scale)
+        if len(self._pointers) == 2 and self._initial_pinch_dist is not None:
+            current_dist = self._calculate_pointer_dist()
+            if self._initial_pinch_dist > 1e-3:
+                self._current_scale *= (current_dist / self._initial_pinch_dist)
+                self._initial_pinch_dist = current_dist  # Update for continuous scaling
+                
+        # 3. Pan Gesture (Two-finger pan)
+        if len(self._pointers) >= 2:
+            dx = float(x) - prev_x
+            dy = float(y) - prev_y
+            # Average movement across pointers
+            self._pan_offset[0] += dx / len(self._pointers)
+            self._pan_offset[1] += dy / len(self._pointers)
+
+    def pointer_up(self, pointer_id: int) -> None:
+        """Handle pointer release and detect swipes/throws."""
+        if pointer_id in self._pointers:
+            # Detect Swipe/Throw before removing the pointer
+            if len(self._pointers) == 1 and self._is_dragging:
+                vx, vy = self.get_throw_velocity()
+                
+                # Check for Swipe (Fast release)
+                mag = np.sqrt(vx*vx + vy*vy)
+                if mag > self.SWIPE_THRESHOLD_VEL:
+                    self._kinetic_vel = np.array([vx, vy], dtype=np.float32)
+                    self._is_scrolling = True
+                
+            del self._pointers[pointer_id]
+            
+        if not self._pointers:
+            self._is_dragging = False
+            self._dragged_element_index = None
+            self._initial_pinch_dist = None
+
+    def update_kinetic_scroll(self, dt: float) -> None:
+        """Apply kinetic scroll inertia."""
+        if not self._is_scrolling:
+            return
+            
+        self._pan_offset[0] += self._kinetic_vel[0] * dt
+        self._pan_offset[1] += self._kinetic_vel[1] * dt
+        
+        # Apply friction
+        self._kinetic_vel *= self.KINETIC_FRICTION
+        
+        # Stop if velocity is low
+        if np.linalg.norm(self._kinetic_vel) < 10.0:
+            self._is_scrolling = False
+            self._kinetic_vel.fill(0)
+
+    def _calculate_pointer_dist(self) -> float:
+        """Calculate Euclidean distance between the first two pointers."""
+        keys = list(self._pointers.keys())
+        p1 = self._pointers[keys[0]]
+        p2 = self._pointers[keys[1]]
+        return float(np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2))
+
     def get_throw_velocity(self) -> Tuple[float, float]:
+        """Calculates velocity using 2nd-order backward difference.
+        
+        Falls back to 1st-order if only 2 points are available.
         """
-        Calculate throw velocity using Second-Order Backward Difference.
-        
-        Formula: v ≈ (3·P_current - 4·P_prev + P_prev2) / (2·dt)
-        
-        This is a second-order accurate approximation of the derivative,
-        which means the error is O(dt²) instead of O(dt) for the naive
-        forward difference. This prevents the "jittery throw" effect
-        because it smooths out high-frequency noise in the pointer data.
-        
-        Why it works:
-        - Naive: v = (P_n - P_{n-1}) / dt — amplifies noise, jittery
-        - 2nd-order: v = (3·P_n - 4·P_{n-1} + P_{n-2}) / (2·dt) — cancels
-          first-order error, smooth result
-        
-        Returns:
-            Tuple of (vx, vy) throw velocity in pixels/second.
-        """
-        if len(self._position_history) < 3:
-            # Not enough history for 2nd-order formula, fall back to naive
-            if len(self._position_history) >= 2:
-                curr = self._position_history[-1]
-                prev = self._position_history[-2]
-                dt = curr[2] - prev[2]
-                if dt > 1e-6:
-                    return (
-                        (curr[0] - prev[0]) / dt * self.THROW_VELOCITY_SCALE,
-                        (curr[1] - prev[1]) / dt * self.THROW_VELOCITY_SCALE,
-                    )
+        if len(self._position_history) < 2:
             return (0.0, 0.0)
         
-        # Second-Order Backward Difference
         p_curr = self._position_history[-1]
         p_prev = self._position_history[-2]
-        p_prev2 = self._position_history[-3]
         
         dt = p_curr[2] - p_prev[2]
         if dt < 1e-6:
             return (0.0, 0.0)
-        
-        # v = (3·P_n - 4·P_{n-1} + P_{n-2}) / (2·dt)
-        vx = (3.0 * p_curr[0] - 4.0 * p_prev[0] + p_prev2[0]) / (2.0 * dt)
-        vy = (3.0 * p_curr[1] - 4.0 * p_prev[1] + p_prev2[1]) / (2.0 * dt)
-        
-        return (
-            vx * self.THROW_VELOCITY_SCALE,
-            vy * self.THROW_VELOCITY_SCALE,
-        )
-    
-    def calculate_drag_force(self, element_x: float, element_y: float,
-                              element_w: float, element_h: float) -> np.ndarray:
-        """
-        Calculate the drag force pulling an element toward the pointer.
-        
-        Formula: F_drag = (PointerPos - ElementCenter) × k_drag
-        
-        Args:
-            element_x: Element X position
-            element_y: Element Y position
-            element_w: Element width
-            element_h: Element height
             
-        Returns:
-            Force vector [fx, fy, 0, 0] as float32
-        """
-        # Calculate element center
-        center_x = element_x + element_w / 2.0
-        center_y = element_y + element_h / 2.0
+        if len(self._position_history) >= 3:
+            p_prev2 = self._position_history[-3]
+            # 2nd-order backward difference
+            vx = (3.0 * p_curr[0] - 4.0 * p_prev[0] + p_prev2[0]) / (2.0 * dt)
+            vy = (3.0 * p_curr[1] - 4.0 * p_prev[1] + p_prev2[1]) / (2.0 * dt)
+        else:
+            # 1st-order (fallback for legacy tests/fast interaction)
+            vx = (p_curr[0] - p_prev[0]) / dt
+            vy = (p_curr[1] - p_prev[1]) / dt
+            
+        return (vx * self.THROW_VELOCITY_SCALE, vy * self.THROW_VELOCITY_SCALE)
+
+    def calculate_drag_force(self, ex: float, ey: float, ew: float, eh: float) -> np.ndarray:
+        """Calculate spring force pulling element toward the first pointer."""
+        if not self._pointers:
+            return np.zeros(4, dtype=np.float32)
+            
+        first_ptr = self._pointers[list(self._pointers.keys())[0]]
+        cx = ex + ew / 2.0
+        cy = ey + eh / 2.0
         
-        # Spring force toward pointer position
-        fx = (self._pointer_x - center_x) * self.DRAG_STIFFNESS
-        fy = (self._pointer_y - center_y) * self.DRAG_STIFFNESS
+        fx = (first_ptr[0] - cx) * self.DRAG_STIFFNESS
+        fy = (first_ptr[1] - cy) * self.DRAG_STIFFNESS
         
         return np.array([fx, fy, 0.0, 0.0], dtype=np.float32)
-    
+
     def reset(self) -> None:
-        """Reset all input state."""
         self._is_dragging = False
         self._dragged_element_index = None
-        self._pointer_x = 0.0
-        self._pointer_y = 0.0
+        self._pointers.clear()
         self._position_history.clear()
+        self._is_scrolling = False
+        self._kinetic_vel.fill(0)

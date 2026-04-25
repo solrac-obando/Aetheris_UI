@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from typing import Optional, Tuple, Any, Dict
 from core.aether_math import StateTensor
-from core.lifecycle import DisposableMixin
+from core.lifecycle import DisposableMixin, get_lifecycle_manager
 
 
 class DifferentialElement(DisposableMixin, ABC):
@@ -56,6 +56,9 @@ class DifferentialElement(DisposableMixin, ABC):
         self.is_static = is_static
         self.is_sleeping = False
         self.sleep_epsilon = sleep_epsilon
+        
+        # Auto-track in lifecycle manager
+        get_lifecycle_manager().track(self)
 
     def dispose(self) -> None:
         """Override dispose to clean up element-specific resources."""
@@ -64,15 +67,30 @@ class DifferentialElement(DisposableMixin, ABC):
         self._sound_trigger = None
         super().dispose()
 
+    def reset(self, x: float, y: float, w: float, h: float, color: Tuple[float, float, float, float], z: int) -> None:
+        """Reset the element state for reuse. Used by ElementPool."""
+        if self.tensor is None:
+            self.tensor = StateTensor(x, y, w, h)
+        else:
+            self.tensor.state[:] = [x, y, w, h]
+            self.tensor.velocity.fill(0)
+            self.tensor.acceleration.fill(0)
+        
+        self._color = np.array(color, dtype=np.float32)
+        self._z_index = z
+        self._disposed = False
+        self.is_sleeping = False
+        self._prev_velocity_mag = 0.0
+
     @property
-    def sound_trigger(self):
+    def sound_trigger(self) -> Optional[str]:
         return self._sound_trigger
 
     @sound_trigger.setter
-    def sound_trigger(self, value):
+    def sound_trigger(self, value: Optional[str]) -> None:
         self._sound_trigger = value
 
-    def evaluate_sound_trigger(self, bridge=None) -> bool:
+    def evaluate_sound_trigger(self, bridge: Any = None) -> bool:
         """Evaluate sound trigger conditions based on current physics state.
 
         Supported trigger formats:
@@ -112,7 +130,7 @@ class DifferentialElement(DisposableMixin, ABC):
             vel_mag = np.linalg.norm(self.tensor.velocity)
             if vel_mag > threshold and self._prev_velocity_mag <= threshold:
                 self._sound_triggered_this_frame = True
-                vol = min(vel_mag / 10.0, 1.0)
+                vol = float(min(vel_mag / 10.0, 1.0))
                 if bridge:
                     bridge.play_sound('impact', volume=vol, pitch=1.0)
                 return True
@@ -126,13 +144,13 @@ class DifferentialElement(DisposableMixin, ABC):
             if acc_mag > 50.0:
                 self._sound_triggered_this_frame = True
                 if bridge:
-                    bridge.play_sound(sound_id, volume=min(acc_mag / 200.0, 1.0), pitch=1.0)
+                    bridge.play_sound(sound_id, volume=float(min(acc_mag / 200.0, 1.0)), pitch=1.0)
                 return True
 
         self._prev_velocity_mag = float(np.linalg.norm(self.tensor.velocity))
         return False
 
-    def _evaluate_multi_sound(self, trigger: str, bridge=None) -> bool:
+    def _evaluate_multi_sound(self, trigger: str, bridge: Any = None) -> bool:
         """Evaluate multi-sound trigger like 'on:click;off:release'."""
         parts = trigger.split(';')
         for part in parts:
@@ -158,7 +176,7 @@ class DifferentialElement(DisposableMixin, ABC):
         return False
 
     @abstractmethod
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Calculates the target [x, y, w, h] for the solver.
         
         This is the core logic where each element type defines its desired
@@ -174,7 +192,7 @@ class DifferentialElement(DisposableMixin, ABC):
         pass
 
     @property
-    def rendering_data(self):
+    def rendering_data(self) -> Dict[str, Any]:
         """Returns data needed for rendering the element.
         
         Note: For zero-allocation tick, use the direct properties instead:
@@ -190,7 +208,7 @@ class DifferentialElement(DisposableMixin, ABC):
         }
 
     @property
-    def rect(self):
+    def rect(self) -> np.ndarray:
         """Direct access to StateTensor.state for zero-allocation rendering.
         
         Returns:
@@ -199,7 +217,7 @@ class DifferentialElement(DisposableMixin, ABC):
         return self.tensor.state
 
     @property
-    def color(self):
+    def color(self) -> np.ndarray:
         """Direct access to color array for zero-allocation rendering.
         
         Returns:
@@ -208,7 +226,7 @@ class DifferentialElement(DisposableMixin, ABC):
         return self._color
 
     @property
-    def z_index(self):
+    def z_index(self) -> int:
         """Direct access to z-index for zero-allocation rendering.
         
         Returns:
@@ -217,7 +235,7 @@ class DifferentialElement(DisposableMixin, ABC):
         return self._z_index
 
     @property
-    def metadata(self):
+    def metadata(self) -> Optional[Dict[str, Any]]:
         """Optional metadata for renderer-specific data (text, fonts, etc.).
         
         Override in subclasses that need to expose non-physics data to renderers.
@@ -256,7 +274,7 @@ class StaticBox(DifferentialElement):
         super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._target_rect = np.array([x, y, w, h], dtype=np.float32)
 
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Return the fixed target rectangle as the asymptote.
         
         Ignores container size since this is a static element.
@@ -270,7 +288,9 @@ class SmartPanel(DifferentialElement):
     By default, maintains 5% padding on all sides, adapting to container size changes.
     """
     
-    def __init__(self, x=0, y=0, w=100, h=100, color=(1, 1, 1, 1), z=0, padding=0.05, sound_trigger=None):
+    def __init__(self, x: float = 0, y: float = 0, w: float = 100, h: float = 100, 
+                 color: Tuple[float, float, float, float] = (1, 1, 1, 1), 
+                 z: int = 0, padding: float = 0.05, sound_trigger: Optional[str] = None) -> None:
         """Initialize a smart panel.
         
         Args:
@@ -284,7 +304,7 @@ class SmartPanel(DifferentialElement):
         super().__init__(x, y, w, h, color, z, sound_trigger=sound_trigger)
         self._padding = padding
 
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Calculate target rectangle with percentage-based padding.
         
         Applies linear scaling (Escalamiento Lineal) from Álgebra de Baldor:
@@ -316,7 +336,7 @@ class SmartThemePanel(SmartPanel):
     
     def __init__(self, theme_key: str = "primary", x: float = 0.0, y: float = 0.0, 
                  w: float = 100.0, h: float = 100.0, z: int = 0, 
-                 padding: float = 0.05, sound_trigger: Optional[str] = None):
+                 padding: float = 0.05, sound_trigger: Optional[str] = None) -> None:
         from core.theme_manager import ThemeManager
         color = ThemeManager.get_color(theme_key)
         super().__init__(x, y, w, h, color, z, padding, sound_trigger)
@@ -336,7 +356,9 @@ class FlexibleTextNode(DifferentialElement):
     In future phases, it would integrate with text rendering systems.
     """
     
-    def __init__(self, x=0, y=0, w=200, h=50, color=(1, 1, 1, 1), z=0, text="Text", sound_trigger=None):
+    def __init__(self, x: float = 0, y: float = 0, w: float = 200, h: float = 50, 
+                 color: Tuple[float, float, float, float] = (1, 1, 1, 1), 
+                 z: int = 0, text: str = "Text", sound_trigger: Optional[str] = None) -> None:
         """Initialize a flexible text node.
         
         Args:
@@ -351,7 +373,7 @@ class FlexibleTextNode(DifferentialElement):
         self._text = text
         # For now, treat as static element - future versions will have text-specific layout logic
 
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Return fixed target rectangle (static behavior for now).
         
         In Phase 8, we use static positioning. Future phases will implement
@@ -361,12 +383,12 @@ class FlexibleTextNode(DifferentialElement):
         return self.tensor.state.copy()
         
     @property
-    def text(self):
+    def text(self) -> str:
         """Get the text content."""
         return self._text
         
     @text.setter
-    def text(self, value):
+    def text(self, value: str) -> None:
         """Set the text content."""
         self._text = value
 
@@ -378,8 +400,10 @@ class SmartButton(DifferentialElement):
     allowing for relative positioning that stays consistent when the parent moves.
     """
     
-    def __init__(self, parent, offset_x=0, offset_y=0, offset_w=100, offset_h=50, 
-                 color=(0.8, 0.8, 0.2, 1.0), z=0, sound_trigger=None):
+    def __init__(self, parent: DifferentialElement, offset_x: float = 0, offset_y: float = 0, 
+                 offset_w: float = 100, offset_h: float = 50, 
+                 color: Tuple[float, float, float, float] = (0.8, 0.8, 0.2, 1.0), 
+                 z: int = 0, sound_trigger: Optional[str] = None) -> None:
         """Initialize a smart button anchored to a parent.
         
         Args:
@@ -406,7 +430,7 @@ class SmartButton(DifferentialElement):
         self._offset_w = offset_w
         self._offset_h = offset_h
 
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Calculate target position based on parent's current position plus offset.
         
         The button dynamically follows its parent by calculating asymptotes
@@ -446,8 +470,10 @@ class CanvasTextNode(DifferentialElement):
     # Element type marker for the metadata bridge
     _element_type = "canvas_text"
     
-    def __init__(self, x=0, y=0, w=200, h=50, color=(1, 1, 1, 1), z=0,
-                 text="Text", font_size=24, font_family="Arial", sound_trigger=None):
+    def __init__(self, x: float = 0, y: float = 0, w: float = 200, h: float = 50, 
+                 color: Tuple[float, float, float, float] = (1, 1, 1, 1), 
+                 z: int = 0, text: str = "Text", font_size: int = 24, 
+                 font_family: str = "Arial", sound_trigger: Optional[str] = None) -> None:
         """Initialize a canvas text node.
         
         Args:
@@ -465,7 +491,7 @@ class CanvasTextNode(DifferentialElement):
         self._font_size = font_size
         self._font_family = font_family
 
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Return fixed target rectangle (static text positioning).
         
         The text node maintains its initial position as its asymptote.
@@ -474,37 +500,37 @@ class CanvasTextNode(DifferentialElement):
         return self.tensor.state.copy()
     
     @property
-    def text(self):
+    def text(self) -> str:
         """Get the text content."""
         return self._text
     
     @text.setter
-    def text(self, value):
+    def text(self, value: str) -> None:
         """Set the text content."""
         self._text = value
     
     @property
-    def font_size(self):
+    def font_size(self) -> int:
         """Get the font size in pixels."""
         return self._font_size
     
     @font_size.setter
-    def font_size(self, value):
+    def font_size(self, value: int) -> None:
         """Set the font size in pixels."""
         self._font_size = value
     
     @property
-    def font_family(self):
+    def font_family(self) -> str:
         """Get the font family name."""
         return self._font_family
     
     @font_family.setter
-    def font_family(self, value):
+    def font_family(self, value: str) -> None:
         """Set the font family name."""
         self._font_family = value
     
     @property
-    def text_metadata(self):
+    def text_metadata(self) -> Dict[str, Any]:
         """Get text metadata for the JSON metadata bridge.
         
         Returns:
@@ -519,7 +545,7 @@ class CanvasTextNode(DifferentialElement):
         }
 
     @property
-    def metadata(self):
+    def metadata(self) -> Optional[Dict[str, Any]]:
         """Text metadata for renderer bridge. Overrides DifferentialElement.metadata."""
         return self.text_metadata
 
@@ -541,8 +567,12 @@ class DOMTextNode(DifferentialElement):
     
     _element_type = "dom_text"
     
-    def __init__(self, x=0, y=0, w=200, h=50, color=(0, 0, 0, 0), z=0,
-                 text="Text", font_size=16, font_family="Arial", text_color=(1, 1, 1, 1), sound_trigger=None):
+    def __init__(self, x: float = 0, y: float = 0, w: float = 200, h: float = 50, 
+                 color: Tuple[float, float, float, float] = (0, 0, 0, 0), 
+                 z: int = 0, text: str = "Text", font_size: int = 16, 
+                 font_family: str = "Arial", 
+                 text_color: Tuple[float, float, float, float] = (1, 1, 1, 1), 
+                 sound_trigger: Optional[str] = None) -> None:
         """Initialize a DOM text node.
         
         Args:
@@ -562,44 +592,44 @@ class DOMTextNode(DifferentialElement):
         self._font_family = font_family
         self._text_color = np.array(text_color, dtype=np.float32)
 
-    def calculate_asymptotes(self, container_w, container_h) -> np.ndarray:
+    def calculate_asymptotes(self, container_w: float, container_h: float) -> np.ndarray:
         """Return fixed target rectangle (static text positioning)."""
         return self.tensor.state.copy()
     
     @property
-    def text(self):
+    def text(self) -> str:
         return self._text
     
     @text.setter
-    def text(self, value):
+    def text(self, value: str) -> None:
         self._text = value
     
     @property
-    def font_size(self):
+    def font_size(self) -> int:
         return self._font_size
     
     @font_size.setter
-    def font_size(self, value):
+    def font_size(self, value: int) -> None:
         self._font_size = value
     
     @property
-    def font_family(self):
+    def font_family(self) -> str:
         return self._font_family
     
     @font_family.setter
-    def font_family(self, value):
+    def font_family(self, value: str) -> None:
         self._font_family = value
     
     @property
-    def text_color(self):
+    def text_color(self) -> np.ndarray:
         return self._text_color
     
     @text_color.setter
-    def text_color(self, value):
+    def text_color(self, value: Tuple[float, float, float, float]) -> None:
         self._text_color = np.array(value, dtype=np.float32)
     
     @property
-    def text_metadata(self):
+    def text_metadata(self) -> Dict[str, Any]:
         """Get text metadata for the JSON metadata bridge."""
         return {
             "type": "dom_text",
@@ -611,6 +641,6 @@ class DOMTextNode(DifferentialElement):
         }
 
     @property
-    def metadata(self):
+    def metadata(self) -> Optional[Dict[str, Any]]:
         """Text metadata for renderer bridge. Overrides DifferentialElement.metadata."""
         return self.text_metadata

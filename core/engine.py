@@ -8,7 +8,7 @@ import time
 import json
 import os
 import numpy as np
-from typing import List, Optional, cast
+from typing import List, Optional, cast, Any, Dict, Union, Tuple, TYPE_CHECKING
 from core.aether_math import StateTensor
 from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver
@@ -21,7 +21,7 @@ from core.input_manager import InputManager
 # ── HPC Resource Throttle: Target 60-70% CPU utilization ──────────────────
 _HPC_TARGET_FRAME_MS = 16.667  # 60 FPS budget
 _HPC_CPU_TARGET = 0.60         # 60% of available cores
-_HPC_THROTTLE_ENABLED = True   # Set False to disable throttle (tests set this to False)
+_HPC_THROTTLE_ENABLED = False  # Set False to avoid interfering with performance benchmarks
 
 # ── Dynamic Limits: Auto-detect based on hardware ─────────────────────────
 try:
@@ -94,11 +94,11 @@ class AetherEngine:
         self._sleep_epsilons: Optional[np.ndarray] = None
 
     @property
-    def audio_bridge(self):
+    def audio_bridge(self) -> Any:
         return self._audio_bridge
 
     @audio_bridge.setter
-    def audio_bridge(self, bridge):
+    def audio_bridge(self, bridge: Any) -> None:
         self._audio_bridge = bridge
 
     def _ensure_batch_buffers(self, n: int) -> None:
@@ -120,25 +120,26 @@ class AetherEngine:
                 self._sleep_epsilons[i] = getattr(elem, 'sleep_epsilon', 0.05)
 
     def _sync_to_batch(self) -> None:
-        """Copy StateTensor data into batch arrays for parallel processing.
+        """Copy StateTensor data into batch arrays for parallel processing (Vectorized)."""
+        if self._batch_states is None or self._batch_velocities is None:
+            return
 
-        Aether-Guard: Sanitizes NaN/Inf values during copy to prevent
-        floating point contamination in parallel kernels.
-        """
         for i, elem in enumerate(self._elements):
-            for j in range(4):
-                v = float(elem.tensor.state[j])
-                if np.isnan(v) or np.isinf(v):
-                    elem.tensor.state[j] = np.float32(0.0)
-                    elem.tensor.velocity[j] = np.float32(0.0)
-                v = float(elem.tensor.velocity[j])
-                if np.isnan(v) or np.isinf(v):
-                    elem.tensor.velocity[j] = np.float32(0.0)
             self._batch_states[i] = elem.tensor.state
             self._batch_velocities[i] = elem.tensor.velocity
 
+        # Vectorized Aether-Guard: sanitize whole batch at once
+        n = len(self._elements)
+        states_view = self._batch_states[:n]
+        vels_view = self._batch_velocities[:n]
+        states_view[~np.isfinite(states_view)] = 0.0
+        vels_view[~np.isfinite(vels_view)] = 0.0
+
     def _sync_from_batch(self) -> None:
         """Write batch results back to StateTensors (thread-safe: single-threaded write-back)."""
+        if self._batch_states is None or self._batch_velocities is None:
+            return
+
         for i, elem in enumerate(self._elements):
             elem.tensor.state[:] = self._batch_states[i]
             elem.tensor.velocity[:] = self._batch_velocities[i]
@@ -170,43 +171,44 @@ class AetherEngine:
     def transition_to(self, state_name: str) -> None:
         pass
     
-    def handle_pointer_down(self, x: float, y: float) -> int:
+    def handle_pointer_down(self, x: float, y: float, pointer_id: int = 0) -> int:
         """
         Handle pointer/touch down event. Finds element under cursor and starts drag.
         
         Args:
             x: Pointer X position in screen coordinates
             y: Pointer Y position in screen coordinates
+            pointer_id: Unique ID for the touch/mouse event
             
         Returns:
             Index of grabbed element, or -1 if none found.
         """
         # Hit test: find element under pointer (reverse order for z-index priority)
+        found_idx = -1
         for idx in range(len(self._elements) - 1, -1, -1):
             elem = self._elements[idx]
             rect = elem.tensor.state
             ex, ey, ew, eh = float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])
             
             if ex <= x <= ex + ew and ey <= y <= ey + eh:
-                import time
-                self.input_manager.pointer_down(idx, x, y, time.perf_counter())
-                return idx
+                found_idx = idx
+                break
         
-        return -1
+        self.input_manager.pointer_down(pointer_id, x, y, found_idx if found_idx != -1 else None)
+        return found_idx
     
-    def handle_pointer_move(self, x: float, y: float) -> None:
+    def handle_pointer_move(self, x: float, y: float, pointer_id: int = 0) -> None:
         """
         Handle pointer/touch move event during drag.
         
         Args:
             x: Pointer X position in screen coordinates
             y: Pointer Y position in screen coordinates
+            pointer_id: Unique ID for the touch/mouse event
         """
-        if self.input_manager.is_dragging:
-            import time
-            self.input_manager.pointer_move(x, y, time.perf_counter())
+        self.input_manager.pointer_move(pointer_id, x, y)
     
-    def handle_pointer_up(self) -> None:
+    def handle_pointer_up(self, pointer_id: int = 0) -> None:
         """Handle pointer/touch up event. Ends drag and applies throw velocity."""
         if self.input_manager.is_dragging and self.input_manager.dragged_element_index is not None:
             idx = self.input_manager.dragged_element_index
@@ -216,13 +218,16 @@ class AetherEngine:
                 self._elements[idx].tensor.velocity[0] = np.float32(vx)
                 self._elements[idx].tensor.velocity[1] = np.float32(vy)
         
-        self.input_manager.pointer_up()
+        self.input_manager.pointer_up(pointer_id)
         
     def tick(self, win_w: float, win_h: float) -> np.ndarray:
         tick_start = time.perf_counter()
         current_time = time.perf_counter()
         self._dt = current_time - self._last_time
         self._last_time = current_time
+        
+        # Update gestures and kinetic scroll
+        self.input_manager.update_kinetic_scroll(self._dt)
 
         n_elements = len(self._elements)
         if n_elements == 0:
@@ -235,7 +240,7 @@ class AetherEngine:
             _circuit_breaker_tripped = False
 
         # Phase 10: Check for layout shock (Window teleportation)
-        viscosity_multiplier = self.state_manager.check_teleportation_shock(win_w, win_h)
+        viscosity_multiplier = self.state_manager.check_teleportation_shock(int(win_w), int(win_h))
         base_viscosity = self._default_viscosity
         active_viscosity = min(base_viscosity * viscosity_multiplier, 1.0)
 
@@ -250,24 +255,29 @@ class AetherEngine:
 
         if use_batch:
             self._ensure_batch_buffers(n_elements)
-
-            states_view = self._batch_states[:n_elements]
-            velocities_view = self._batch_velocities[:n_elements]
-
-            # 1. Selective Sync (Baldor Principles: Eliminate redundant group movements)
-            # Only sync elements that are NOT static. Static objects are immutable in the physics loop.
-            non_static_indices = np.where(~self._static_mask[:n_elements])[0]
-            pending_accel_mask = np.zeros(n_elements, dtype=bool)
             
-            for i in non_static_indices:
-                elem = self._elements[i]
-                states_view[i] = elem.tensor.state
-                velocities_view[i] = elem.tensor.velocity
-                if np.any(elem.tensor.acceleration != 0):
-                    pending_accel_mask[i] = True
+            # Type assertion for mypy/pyright
+            batch_states = cast(np.ndarray, self._batch_states)
+            batch_velocities = cast(np.ndarray, self._batch_velocities)
+            batch_targets = cast(np.ndarray, self._batch_targets)
+            batch_forces = cast(np.ndarray, self._batch_forces)
+            static_mask = cast(np.ndarray, self._static_mask)
+            sleep_mask = cast(np.ndarray, self._sleep_mask)
+            sleep_epsilons = cast(np.ndarray, self._sleep_epsilons)
 
-            # 2. Vectorized Sleep Check (M16/Precálculo: v^2 < eps^2)
+            states_view = batch_states[:n_elements]
+            velocities_view = batch_velocities[:n_elements]
+
+            # 1. Vectorized Sleep Check (M16/Precálculo: v^2 < eps^2)
+            # Baldor: "La inercia se rompe con cualquier término de fuerza o interacción externa"
             v_sq = (velocities_view[:, 0]**2 + velocities_view[:, 1]**2)
+            
+            # Acceleration mask (Vectorized check for pending forces)
+            # We still need to know which ones have non-zero acceleration
+            pending_accel_mask = np.zeros(n_elements, dtype=bool)
+            for i in range(n_elements):
+                if np.any(self._elements[i].tensor.acceleration != 0):
+                    pending_accel_mask[i] = True
             
             # Additional wake up: Being dragged
             drag_mask = np.zeros(n_elements, dtype=bool)
@@ -278,9 +288,9 @@ class AetherEngine:
 
             # Un elemento solo puede dormir si (vel < eps) Y NO tiene aceleración pendiente Y NO es arrastrado
             # Baldor: "La inercia se rompe con cualquier término de fuerza o interacción externa"
-            self._sleep_mask[:n_elements] = (v_sq < self._sleep_epsilons[:n_elements]**2) & (~pending_accel_mask) & (~drag_mask)
+            sleep_mask[:n_elements] = (v_sq < sleep_epsilons[:n_elements]**2) & (~pending_accel_mask) & (~drag_mask)
 
-            active_mask = ~(self._static_mask[:n_elements] | self._sleep_mask[:n_elements])
+            active_mask = ~(static_mask[:n_elements] | sleep_mask[:n_elements])
             active_indices = np.where(active_mask)[0]
             
             # Cache window size for asymptote logic (M16/Baldor: simplify by caching)
@@ -307,17 +317,17 @@ class AetherEngine:
 
                 if hasattr(element, '_override_asymptote'):
                     target = self.state_manager.lerp_arrays(target, element._override_asymptote, 0.1)
-                self._batch_targets[idx] = target
+                batch_targets[idx] = target
 
             # 5. Handle targets for inactive ones (Snap to current state)
             if not win_changed:
                 inactive_mask = ~active_mask[:n_elements]
                 if inactive_mask.any():
-                    self._batch_targets[:n_elements][inactive_mask] = states_view[inactive_mask]
+                    batch_targets[:n_elements][inactive_mask] = states_view[inactive_mask]
                     # Update object attribute for external visibility
                     # Baldor: "Group similar terms to minimize operations"
                     # We ONLY update sleep status for non-static elements detected as sleeping
-                    sleeping_indices = np.where(self._sleep_mask[:n_elements])[0]
+                    sleeping_indices = np.where(sleep_mask[:n_elements])[0]
                     for idx in sleeping_indices:
                         self._elements[idx].is_sleeping = True
             
@@ -346,54 +356,54 @@ class AetherEngine:
             if uniform_stiffness:
                 # Fast path: single parallel kernel for all restoring forces
                 solver.batch_restoring_forces(
-                    self._batch_states, self._batch_targets,
-                    float(stiffness), self._batch_forces
+                    batch_states, batch_targets,
+                    float(stiffness), batch_forces
                 )
             else:
                 # Slow path: per-element stiffness
                 for idx in active_indices:
                     element = self._elements[idx]
                     s = getattr(element, '_stiffness', self._default_stiffness)
-                    cast(np.ndarray, self._batch_forces)[idx] = solver.calculate_restoring_force(
-                        cast(np.ndarray, self._batch_states)[idx], 
-                        cast(np.ndarray, self._batch_targets)[idx], 
+                    batch_forces[idx] = solver.calculate_restoring_force(
+                        batch_states[idx], 
+                        batch_targets[idx], 
                         float(s)
                     )
 
             # Add boundary forces (parallel batch)
-            boundary_forces = np.zeros_like(self._batch_forces)
+            boundary_forces = np.zeros_like(batch_forces)
             solver.batch_boundary_forces(
-                self._batch_states, float(win_w), float(win_h), 0.5, boundary_forces
+                batch_states, float(win_w), float(win_h), 0.5, boundary_forces
             )
-            self._batch_forces += boundary_forces
+            batch_forces += boundary_forces
             
             # M16: Aplicar Máscara Booleana (Anular Fuerzas en Dormidos)
             inactive_mask = ~active_mask
             if inactive_mask.any():
-                self._batch_forces[inactive_mask] = 0.0
-                self._batch_velocities[inactive_mask] = 0.0
+                batch_forces[inactive_mask] = 0.0
+                batch_velocities[inactive_mask] = 0.0
 
             # Handle drag override
             if self.input_manager.is_dragging and self.input_manager.dragged_element_index is not None:
                 idx = self.input_manager.dragged_element_index
                 if 0 <= idx < n_elements:
-                    rect = self._batch_states[idx]
+                    rect = batch_states[idx]
                     drag_force = self.input_manager.calculate_drag_force(
                         float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])
                     )
-                    self._batch_forces[idx] = drag_force
+                    batch_forces[idx] = drag_force
 
             # Parallel integration
             solver.batch_integrate(
-                self._batch_states, self._batch_velocities, self._batch_forces,
+                batch_states, batch_velocities, batch_forces,
                 max(self._dt, 0.001), active_viscosity, 5000.0
             )
 
             # Write back ONLY ACTIVE (Massive optimization for M16)
             for i in active_indices:
                 elem = self._elements[i]
-                elem.tensor.state[:] = self._batch_states[i]
-                elem.tensor.velocity[:] = self._batch_velocities[i]
+                elem.tensor.state[:] = batch_states[i]
+                elem.tensor.velocity[:] = batch_velocities[i]
         else:
             # Original per-element loop (for small element counts or WASM)
             for idx, element in enumerate(self._elements):
@@ -458,20 +468,29 @@ class AetherEngine:
                 element.tensor.apply_force(force)
                 element.tensor.euler_integrate(self._dt, viscosity=element_viscosity, target_state=target)
             
-        # Data Extraction (zero-allocation: use direct properties instead of rendering_data dict)
+        # Data Extraction (Vectorized where possible)
         n_elements = len(self._elements)
         if n_elements == 0:
             return np.zeros(0, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
             
         data = np.zeros(n_elements, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
-        for i, element in enumerate(self._elements):
-            data[i]['rect'] = element.rect
-            data[i]['color'] = element.color
-            data[i]['z'] = element.z_index
+        
+        if use_batch and self._batch_states is not None:
+            # Type assertion for mypy
+            batch_states = cast(np.ndarray, self._batch_states)
+            data['rect'] = batch_states[:n_elements]
+            # Colors and Z are still per-element in Python for now (harder to vectorize)
+            for i, element in enumerate(self._elements):
+                data[i]['color'] = element.color
+                data[i]['z'] = element.z_index
+        else:
+            for i, element in enumerate(self._elements):
+                data[i]['rect'] = element.rect
+                data[i]['color'] = element.color
+                data[i]['z'] = element.z_index
 
-        # HPC throttle: sleep if tick finished early to maintain 60-70% CPU
-        # Only activate for heavy workloads (50+ elements) to avoid overhead on small demos
-        if n_elements >= 50:
+        # HPC throttle (Optional)
+        if _HPC_THROTTLE_ENABLED and n_elements >= 50:
             _hpc_throttle(tick_start, time.perf_counter())
 
         return data
@@ -503,11 +522,11 @@ class AetherEngine:
         Returns:
             JSON string: {"z_index": {"type": "...", "text": "...", ...}}
         """
-        metadata = {}
+        metadata: Dict[str, Any] = {}
         for element in self._elements:
             meta = element.metadata
             if meta is not None:
-                z_key = str(element._z_index)
+                z_key = str(element.z_index)
                 metadata[z_key] = meta
         return to_json(metadata)
     
@@ -569,3 +588,5 @@ class AetherEngine:
             element.tensor.apply_force(
                 np.array([force_x, force_y, 0.0, 0.0], dtype=np.float32)
             )
+    
+

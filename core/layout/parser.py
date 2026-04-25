@@ -36,11 +36,11 @@ class LayoutLexer:
     """Optimized lexer using regex-based block processing for faster parsing."""
     
     TOKEN_PATTERNS = [
-        (r'#[^\n]*', lambda m: ('COMMENT', m.group(0)[1:])),  # Comments
+        (r'(?:^|[ \t])#[^\n]*', lambda m: ('COMMENT', m.group(0).strip()[1:])),  # Comments
         (r'"[^"]*"', lambda m: ('STRING', m.group(0)[1:-1])),  # Double-quoted strings
         (r"'[^']*'", lambda m: ('STRING', m.group(0)[1:-1])),  # Single-quoted strings
         (r'[0-9]+(?:\.[0-9]+)?', lambda m: ('NUMBER', float(m.group(0)))),  # Numbers
-        (r'[a-zA-Z_][a-zA-Z0-9_-]*', lambda m: ('IDENT', m.group(0))),  # Identifiers
+        (r'#?[a-zA-Z_][a-zA-Z0-9_-]*', lambda m: ('IDENT', m.group(0))),  # Identifiers (including #id)
         (r'\{', lambda m: ('LBRACE', '{')),
         (r'\}', lambda m: ('RBRACE', '}')),
         (r':', lambda m: ('COLON', ':')),
@@ -54,14 +54,11 @@ class LayoutLexer:
         self.line = 1
         self.column = 1
         self.tokens: List[Token] = []
-        self._compiled_pattern = None
+        self._compiled_pattern = re.compile('|'.join([f'({p})' for p, _ in self.TOKEN_PATTERNS]), re.MULTILINE)
 
     def _build_pattern(self):
-        """Build combined regex pattern for efficient matching."""
-        pattern_parts = []
-        for pattern, _ in self.TOKEN_PATTERNS:
-            pattern_parts.append(f'({pattern})')
-        self._compiled_pattern = re.compile('|'.join(pattern_parts))
+        """Patterns are now built in __init__ for efficiency."""
+        pass
 
     def _get_line_col(self, pos: int) -> Tuple[int, int]:
         """Calculate line and column from position."""
@@ -260,6 +257,9 @@ class LayoutParser:
         while self._current().type != LayoutToken.EOF:
             if self._current().type == LayoutToken.IDENT:
                 elements.append(self._parse_element())
+            else:
+                # Avoid infinite loop on unknown tokens
+                self._advance()
             self._skip_newlines()
         return elements
 

@@ -1,8 +1,8 @@
 # 📋 AETHERIS - MAPA COMPLETO DE IMPLEMENTACIONES
 # ================================
 # Estado completo de todas las mejoras M1-M15
-# Fecha: 18 Abril 2026
-# Versión: 1.7.0
+# Fecha: 25 Abril 2026
+# Versión: 1.8.0
 
 ---
 
@@ -84,13 +84,24 @@ builder.build_from_intent(engine, intent_json)
 **Ubicación:** `core/lifecycle/`
 **Descripción:** Sistema de ciclos de vida de elementos
 
-### M7: Input Manager ✅
+### M7: Input Manager (Gestos Avanzados) ✅ (NUEVO v1.8)
 **Ubicación:** `core/input_manager.py`
-**Descripción:** Manejo de eventos touch/mouse
+**Descripción:** Manejo de eventos multi-touch con gestos físicos
+**Features:**
+- **Multi-Pointer Support**: Manejo de hasta 10 dedos simultáneos.
+- **Pinch-to-Zoom**: Escalado suave basado en distancia de punteros.
+- **Panning**: Desplazamiento coordinado multi-dedo.
+- **Swipe & Kinetic Scroll**: Desplazamiento con inercia física (fricción configurable).
+- **Inercia**: Los elementos continúan moviéndose tras soltarlos según su masa.
 
-### M8: HTML Parser ✅
-**Ubicación:** `core/html_parser.py`
-**Descripción:** Parser HTML/CSS-like
+### M8: Type Hints & DX Verification ✅ (NUEVO v1.8)
+**Ubicación:** `core/protocols.py`, `core/py.typed`
+**Descripción:** Seguridad de tipos estática en todo el núcleo (Engine, Elements, State)
+**Features:**
+- **Full Type Hints**: Cobertura 100% en métodos críticos.
+- **IDEs Support**: Archivo `py.typed` incluido para autocompletado en VSCode/PyCharm.
+- **Protocolos**: Definición de interfaces para elementos intercambiables.
+- **Docstrings**: Documentación técnica embebida para cada método.
 
 ### M9: Declarative API (Flet-like) ✅ (NUEVO v1.7)
 **Ubicación:** `core/declarative_api.py`

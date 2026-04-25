@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aetheris-ui"
+version = "1.0.0"
+description = "A high-performance, physics-based UI engine driven by linear algebra for Python & WebAssembly"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Carlos Ivan Obando Aure", email = "solracivan.aure@gmail.com"},
+]
+keywords = ["physics", "ui-engine", "webassembly", "pyodide", "moderngl", "kivy", "data-visualization"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Multimedia :: Graphics",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26.4",
+    "numba>=0.59.1",
+    "moderngl>=5.10.0",
+    "moderngl-window>=2.4.6",
+    "Pillow>=10.2.0",
+    "kivy>=2.3.0",
+    "Flask>=3.0.2",
+]
+
+[project.optional-dependencies]
+web = ["xvfbwrapper>=0.2.9"]
+dev = ["pytest>=8.1.1", "pytest-asyncio>=0.23.6"]
+
+[project.urls]
+Homepage = "https://github.com/carlosobando/aetheris-ui"
+Documentation = "https://github.com/carlosobando/aetheris-ui/docs"
+Repository = "https://github.com/carlosobando/aetheris-ui"
+Issues = "https://github.com/carlosobando/aetheris-ui/issues"
+
+[project.scripts]
+aetheris = "main:main"
+
+[tool.setuptools.packages.find]
+include = ["core*", "demo*", "wasm*", "templates*", "docs*", "scripts*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--ignore=tests_stress/"
+markers = [
+    "core: core functional tests (included in public release)",
+]

@@ -32,10 +32,10 @@ else:
 
 
 class StateManager:
-    def __init__(self) -> None:
-        self.last_width: int = 0
-        self.last_height: int = 0
-        self.hyper_damping_frames: int = 0
+    def __init__(self):
+        self.last_width = 0
+        self.last_height = 0
+        self.hyper_damping_frames = 0
         
     def check_teleportation_shock(self, current_w: int, current_h: int) -> float:
         """
@@ -58,5 +58,5 @@ class StateManager:
             
         return 1.0
     
-    def lerp_arrays(self, state_a: np.ndarray, state_b: np.ndarray, t: float) -> np.ndarray:
+    def lerp_arrays(self, state_a, state_b, t):
         return _lerp_arrays(state_a, state_b, t)
