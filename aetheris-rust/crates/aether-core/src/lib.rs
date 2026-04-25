@@ -3,12 +3,14 @@ pub mod engine;
 pub mod input_manager;
 pub mod solver;
 pub mod state_manager;
+pub mod gpu_compute_node;
 
 pub use elements::*;
 pub use engine::AetherEngine;
 pub use input_manager::InputManager;
 pub use solver::*;
 pub use state_manager::StateManager;
+pub use gpu_compute_node::{GPUComputeNode, GPUConfig};
 
 #[cfg(test)]
 mod solver_tests {

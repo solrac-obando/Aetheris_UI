@@ -1,7 +1,7 @@
 # 📋 AETHERIS - MAPA COMPLETO DE IMPLEMENTACIONES
 # ================================
 # Estado completo de todas las mejoras M1-M15
-# Fecha: 13 Abril 2026
+# Fecha: 18 Abril 2026
 # Versión: 1.7.0
 
 ---
@@ -265,13 +265,22 @@ wasm/
 
 ### Mejoras Pending (desde docs/PLAN_MEJORAS.md)
 
-| Mejora | Riesgo | Dependencias | Recomendación |
+| Mejora | Riesgo | Dependencias | Estado |
 |--------|--------|---------------|----------------|
-| M8: Typing | ⚪ Muy bajo | Ninguna | ✅ SEGURA |
-| M7: Gestures | ⚪ Bajo | Input Manager | ✅ SEGURA |
-| M9: Flexbox Parser | ⚪ Bajo | Ninguna | ✅ SEGURA |
-| ECS (M3) | 🟡 Medio | Requieren refactor | ⏳ ESPERAR |
-| WebGL puro (M5) | 🔴 Alto | Rewrite completo | ❌ ESPERAR |
+| M1: WASM | ⚪ Nulo | Ninguna | ✅ COMPLETADO |
+| M2: Batch | ⚪ Nulo | Numba | ✅ COMPLETADO |
+| M3: Logging | ⚪ Nulo | Ninguna | ✅ COMPLETADO |
+| M4: Security | ⚪ Nulo | JSON | ✅ COMPLETADO |
+| M5: UI Builder | ⚪ Nulo | Elementos | ✅ COMPLETADO |
+| M6: Lifecycle | ⚪ Nulo | Resource Mgmt | ✅ COMPLETADO |
+| M7: Input | ⚪ Bajo | Eventos | ✅ COMPLETADO |
+| M8: Typing | ⚪ Bajo | Ninguna | ✅ COMPLETADO |
+| M9: Declarative | ⚪ Bajo | Core | ✅ COMPLETADO |
+| M10: Headless | ⚪ Bajo | Engine | ✅ COMPLETADO |
+| M15: Themes | ⚪ Bajo | Engine | ✅ COMPLETADO |
+| M16: Sleep | ⚪ Bajo | Vectorization | ✅ COMPLETADO |
+| M11: ECS | 🟡 Medio | Requiere refactor | ⏳ Q3 2026 |
+| M12: GPU | 🔴 Alto | GLSL Runtime | ⏳ Q4 2026 |
 
 ---
 

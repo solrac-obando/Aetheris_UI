@@ -13,18 +13,10 @@ pub struct RenderData {
     pub z: i32,
 }
 
-pub struct AetherEngine {
-    elements: Vec<Box<dyn DifferentialElement>>,
-    last_instant: Option<Instant>,
-    dt: f64,
-    state_manager: StateManager,
-    input_manager: InputManager,
-    default_stiffness: f32,
-    default_viscosity: f32,
-    batch_states: Vec<Vec4>,
-    batch_velocities: Vec<Vec4>,
-    batch_targets: Vec<Vec4>,
     batch_forces: Vec<Vec4>,
+    gpu_node: Option<crate::gpu_compute_node::GPUComputeNode>,
+    gpu_device: Option<wgpu::Device>,
+    gpu_queue: Option<wgpu::Queue>,
 }
 
 impl Default for AetherEngine {
@@ -41,6 +33,9 @@ impl Default for AetherEngine {
             batch_velocities: Vec::new(),
             batch_targets: Vec::new(),
             batch_forces: Vec::new(),
+            gpu_node: None,
+            gpu_device: None,
+            gpu_queue: None,
         }
     }
 }
@@ -48,6 +43,35 @@ impl Default for AetherEngine {
 impl AetherEngine {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn enable_gpu(&mut self) -> bool {
+        let instance = wgpu::Instance::default();
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            force_fallback_adapter: false,
+            compatible_surface: None,
+        }));
+
+        if let Some(adapter) = adapter {
+            let (device, queue) = pollster::block_on(adapter.request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("Aether GPUDevice"),
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::Performance,
+                },
+                None,
+            )).unwrap();
+
+            let node = crate::gpu_compute_node::GPUComputeNode::new(&device);
+            self.gpu_device = Some(device);
+            self.gpu_queue = Some(queue);
+            self.gpu_node = Some(node);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn register_element(&mut self, element: Box<dyn DifferentialElement>) {
@@ -132,39 +156,60 @@ impl AetherEngine {
                 self.batch_velocities[idx] = element.tensor().velocity;
             }
 
-            let stiffness = self.default_stiffness;
-            solver::batch_restoring_forces(
-                &self.batch_states[..n],
-                &self.batch_targets[..n],
-                stiffness,
-                &mut self.batch_forces[..n],
-            );
-
-            for i in 0..n {
-                let bf = solver::calculate_boundary_forces(self.batch_states[i], win_w, win_h, 0.5);
-                self.batch_forces[i] = self.batch_forces[i] + bf;
-            }
-
-            if self.input_manager.is_dragging() {
-                if let Some(idx) = self.input_manager.dragged_element_index() {
-                    if idx < n {
-                        let elem = &self.elements[idx];
-                        let s = elem.tensor().state;
-                        let drag_force =
-                            self.input_manager.calculate_drag_force(s.x, s.y, s.w, s.h);
-                        self.batch_forces[idx] = drag_force;
+            if let (Some(node), Some(device), Some(queue)) = (&mut self.gpu_node, &self.gpu_device, &self.gpu_queue) {
+                let config = crate::gpu_compute_node::GPUConfig {
+                    lerp_factor: stiffness,
+                    container_w: win_w,
+                    container_h: win_h,
+                    dt,
+                    viscosity: active_viscosity,
+                    boundary_k: 0.5,
+                    snap_dist: 0.5,
+                    snap_vel: 5.0,
+                };
+                
+                node.compute(
+                    device,
+                    queue,
+                    &mut self.batch_states[..n],
+                    &mut self.batch_velocities[..n],
+                    &self.batch_targets[..n],
+                    config,
+                );
+            } else {
+                solver::batch_restoring_forces(
+                    &self.batch_states[..n],
+                    &self.batch_targets[..n],
+                    stiffness,
+                    &mut self.batch_forces[..n],
+                );
+    
+                for i in 0..n {
+                    let bf = solver::calculate_boundary_forces(self.batch_states[i], win_w, win_h, 0.5);
+                    self.batch_forces[i] = self.batch_forces[i] + bf;
+                }
+    
+                if self.input_manager.is_dragging() {
+                    if let Some(idx) = self.input_manager.dragged_element_index() {
+                        if idx < n {
+                            let elem = &self.elements[idx];
+                            let s = elem.tensor().state;
+                            let drag_force =
+                                self.input_manager.calculate_drag_force(s.x, s.y, s.w, s.h);
+                            self.batch_forces[idx] = drag_force;
+                        }
                     }
                 }
+    
+                solver::batch_integrate(
+                    &mut self.batch_states[..n],
+                    &mut self.batch_velocities[..n],
+                    &self.batch_forces[..n],
+                    dt,
+                    active_viscosity,
+                    5000.0,
+                );
             }
-
-            solver::batch_integrate(
-                &mut self.batch_states[..n],
-                &mut self.batch_velocities[..n],
-                &self.batch_forces[..n],
-                dt,
-                active_viscosity,
-                5000.0,
-            );
 
             for (i, element) in self.elements.iter_mut().enumerate() {
                 let tensor = element.tensor_mut();

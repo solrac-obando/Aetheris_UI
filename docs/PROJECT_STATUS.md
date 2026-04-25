@@ -12,9 +12,9 @@
 | **Bundle Size** | ~200KB | ✅ Production |
 | **FPS (50K elementos)** | 60 FPS | ✅ Production |
 | **Safety Margin** | 35% | ✅ Stable |
-| **Tests** | 580+ passing | ✅ Production |
-| **Versión** | v1.2.0 | ✅ Released |
-| **Regresión** | 100% (53/53) | ✅ Passed |
+| **Tests** | 600+ passing | ✅ Production |
+| **Versión** | v1.7.5 | ✅ Released |
+| **Regresión** | 100% (58/58) | ✅ Passed |
 
 ---
 
@@ -99,9 +99,11 @@ aetheris_UI/
 | M2 (Batch Asymptotes) | 58 | ✅ |
 | M5 (Layout DSL) | 25+ | ✅ |
 | M6 (Lifecycle) | 25+ | ✅ |
-| Performance | 50+ | ✅ |
+| M9 (Declarative API) | 40+ | ✅ |
+| M12 (WebGPU Light) | 20+ | ✅ |
+| Performance | 60+ | ✅ |
 | Vulnerability | 14 | ✅ |
-| **Total** | **511+** | ✅ |
+| **Total** | **600+** | ✅ |
 
 ### Tests M2 Detallados
 
@@ -166,9 +168,10 @@ aetheris_UI/
 
 | Mes | Mejora | Impacto |
 |-----|--------|---------|
-| Q3 | M3 ECS | 10x throughput |
-| Q3 | M7 Touch | Mobile market |
-| Q4 | M4 GPU | 100K+ elements |
+| Q3 | M11 ECS Refactor | 10x throughput |
+| Q4 | M12 GPU Compute | Completado ✅ |
+| Q4 | M15 Theme Engine | Multi-state UI |
+| Q4 | M17 Async Bridge | Zero-latency I/O |
 
 ---
 

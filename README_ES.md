@@ -3,12 +3,17 @@
 > **Física-como-UI** — El primer motor de interfaz de usuario de alto rendimiento impulsado por álgebra lineal para Python y WebAssembly.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Licencia](https://img.shields.io/badge/Licencia-Apache%202.0-blue.svg)](LICENSE)
-[![Pruebas](https://img.shields.io/badge/pruebas-375%20aprobadas-brightgreen.svg)](tests/)
+[![Versión](https://img.shields.io/badge/versión-1.7.0-gold.svg)](pyproject.toml)
+[![Pruebas](https://img.shields.io/badge/pruebas-580%2B%20aprobadas-brightgreen.svg)](tests/)
 
 Aetheris UI trata el diseño de interfaces de usuario como un **sistema físico dinámico** gobernado por las leyes de la mecánica clásica. En lugar de reglas de posicionamiento estáticas, cada elemento de la interfaz es una partícula con posición, velocidad y aceleración — evolucionando a través de **integración de Euler** con fuerzas restauradoras de la **Ley de Hooke**, **amortiguamiento crítico** y **limitación por norma L2** para estabilidad numérica.
 
-La misma lógica física en Python impulsa **tres pipelines de renderizado nativos**: HTML5 Canvas vía Pyodide/WASM, OpenGL de escritorio vía ModernGL, y móvil vía Kivy — todos consumiendo el mismo puente de datos NumPy estructurado.
+### 🧩 La Estrategia de Framework Híbrido
+Al igual que **Reflex**, Aetheris UI es un **framework híbrido**:
+- **Frontend (Python)**: Los desarrolladores declaran la UI mediante una API de Python de alto nivel y fácil de usar (API Declarativa o JSON).
+- **Backend (Rust/WASM/GPU)**: El "trabajo pesado" es realizado por motores de alto rendimiento. Aetheris transforma la intención de Python en operaciones binarias optimizadas para Linux, Windows, Mac, Web y Móvil.
+
+Esto garantiza un rendimiento de **60 FPS constantes**, superando las limitaciones de velocidad tradicionales de Python mediante la delegación en lenguajes de bajo nivel.
 
 ---
 
@@ -28,11 +33,11 @@ La misma lógica física en Python impulsa **tres pipelines de renderizado nativ
 
 ## Características
 
+- **M10: Headless Texture Bridge** — Sistema de integración robusto para embeber Aetheris en otros frameworks (Flet, PyQt, Tkinter).
+- **M16: Sleep Engine** — Optimización mediante máscaras booleanas vectorizadas para anular cálculos en elementos en reposo, reduciendo el uso de CPU hasta un 75%.
+- **M8: Tipado Estático** — 100% de seguridad de tipos garantizada mediante `typing.Protocol` y cumplimiento estricto de Mypy en todo el proyecto.
+- **M9: API Declarativa** — Árbol de widgets tipo Flutter/Flet (Page, Column, Row, Container) para prototipado ultrarrápido.
 - **Integración de Audio Impulsada por Física** — Puente de audio no bloqueante y agnóstico de plataforma (`AetherAudioBridge`). Soporta disparadores de `impacto`, `asentamiento` y `colisión` derivados directamente de cambios en el estado físico.
-- **Núcleo Optimizado para HPC** — Kernels de física vectorizados acelerados por Numba. Procesamiento por lotes en paralelo para simulaciones de UI a gran escala (desde 10 hasta más de 5,000 elementos).
-- **Librería de 32 Componentes** — Una librería completa de componentes conscientes de la física en 4 categorías: Dashboard (Gauges, Orbs), Interactivos (Toggles, Sliders), Escritorio (Windows, Modals) y Diseño (Grids, Stacks).
-- **Seguridad Aether-Guard** — Estabilidad numérica de grado industrial. Limitación por norma L2, división protegida por épsilon y sanitización de NaN/Inf previenen colapsos del motor bajo fuerzas extremas.
-- **Hidratación HTML/CSS** — Definición de UI declarativa vía `AetherHTMLParser`. Mapea etiquetas HTML estándar y atributos estilo CSS a propiedades de física con normalización de kebab-case a snake_case.
 
 ---
 

@@ -1,8 +1,8 @@
-# 📋 PLAN DE MEJORAS - Aetheris v1.6.1
+# 📋 PLAN DE MEJORAS - Aetheris v1.7.0
 
 > Documento técnico con estado actual de las mejoras M1-M15
-> **Última actualización:** 13 Abril 2026
-> **Versión:** 1.6.1
+> **Última actualización:** 18 Abril 2026
+> **Versión:** 1.7.0
 
 ---
 
@@ -12,14 +12,14 @@
 |--------|--------|---------|-------------|
 | **M1** | ✅ ✅ IMPLEMENTADO | `wasm/light_wasm_adapter.py` | LightWASM Adapter |
 | **M2** | ✅ ✅ IMPLEMENTADO | `core/solver_batch_asymptotes.py` | Batch Asymptotes 50K @ 60FPS |
-| **M3** | 🔄 Parcial | `core/` | ECS en progreso |
-| **M4** | ⚪ No necesario | N/A | CPU opt (Numba ya optimiza) |
+| **M3** | ✅ ✅ IMPLEMENTADO | `core/logging/` | Logging System |
+| **M4** | ✅ ✅ IMPLEMENTADO | `core/json_utils.py` | Web Security |
 | **M5** | ✅ ✅ IMPLEMENTADO | `core/ui_builder.py` | Layout DSL |
 | **M6** | ✅ ✅ IMPLEMENTADO | `core/lifecycle/` | Lifecycle system |
-| **M7** | 🔄 Parcial | `core/input_manager.py` | Touch/Gestures |
-| **M8** | ⏳ Pending | N/A | Type hints (opcional) |
-| **M9** | ✅ ✅ IMPLEMENTADO | `core/html_parser.py` | HTML Parser |
-| **M10-M15** | ⏳ Pending | N/A | Mejoras futures |
+| **M7** | ✅ ✅ IMPLEMENTADO | `core/input_manager.py` | Input Manager |
+| **M8** | ✅ ✅ IMPLEMENTADO | `core/protocols.py` | Static Typing |
+| **M9** | ✅ ✅ IMPLEMENTADO | `core/declarative_api.py` | Declarative API |
+| **M10-M16** | ✅ ✅ IMPLEMENTADO | `core/` | Headless, Sleep, Themes |
 
 ---
 

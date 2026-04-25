@@ -3,6 +3,7 @@ name = "aether-math"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Pure mathematics core for Aetheris UI — zero external dependencies"
+description = "Pure mathematics core for Aetheris UI — minimal dependencies"
 
 [dependencies]
+bytemuck = { version = "1.16", features = ["derive"] }

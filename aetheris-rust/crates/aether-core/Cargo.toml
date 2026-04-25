@@ -9,3 +9,6 @@ description = "Physics engine core for Aetheris UI"
 aether-math = { path = "../aether-math" }
 rayon = "1.10"
 serde_json = "1.0"
+wgpu = "22.1"
+pollster = "0.3"
+bytemuck = { version = "1.16", features = ["derive"] }

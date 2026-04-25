@@ -5,13 +5,18 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.1-gold.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-500%2B-brightgreen.svg)](tests/)
+[![Version](https://img.shields.io/badge/version-1.7.0-gold.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-580%2B-brightgreen.svg)](tests/)
 [![Security](https://img.shields.io/badge/security-NaN%2FInf%20protected-green.svg)](core/json_utils.py)
 
 Aetheris UI treats user interface layout as a **dynamic physical system** governed by classical mechanics. Every UI element is a particle with position, velocity, and acceleration — evolving through **Symplectic Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
 
-Now features a **dual-engine architecture**: a pure Python engine and a **17.2x faster Rust engine** (5,000 elements benchmark), selectable at runtime via `EngineSelector`.
+### 🧩 The Hybrid Framework Strategy
+Similar to **Reflex**, Aetheris UI is a **hybrid framework**:
+- **Frontend (Python)**: Developers declare the UI using a high-level, easy-to-use Python API (Declarative API or JSON).
+- **Backend (Rust/WASM/GPU)**: The "heavy lifting" is performed by a high-performance engine. Aetheris transforms the Python intent into optimized binary operations for the targeted platform.
+
+This ensures **60 FPS performance** across Linux, Windows, Mac, Web, and Mobile, regardless of Python's global interpreter lock (GIL).
 
 ---
 
@@ -35,9 +40,12 @@ Now features a **dual-engine architecture**: a pure Python engine and a **17.2x 
 ## Features
 
 - **🚀 Dual-Engine: Python + Rust** — Choose between pure Python or 17.2x faster Rust at runtime via `EngineSelector`. Automatic fallback if Rust is unavailable.
-- **🦾 Tipado Estático (M8)** — Integridad estructural garantizada mediante `typing.Protocol` (AetherEngineProtocol). Resolución de deuda técnica y cumplimiento de PEP 484.
+- **🦾 Static Typing (M8)** — 100% type safety enforced via `typing.Protocol` and strict Mypy compliance.
 - **M1: WASM Ligero** (~200KB) — Lightweight WebAssembly adapter replacing Pyodide (40MB). Canvas 2D + WebGL support.
 - **M2: Batch Asymptotes** — 50,000 elements at 60 FPS with Numba JIT kernels + 35% safety margin.
+- **M9: Declarative API** — Flutter-like widget tree (Page, Column, Row, Container) for rapid development.
+- **M10: Headless Texture Bridge** — Robust embedding system for external frameworks (Flet, PyQt, Web).
+- **M16: Sleep Engine** — Optimized vectorized masking to ignore static elements, reducing CPU load by up to 75%.
 - **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers derived from physical state changes.
 - **HPC-Optimized Core** — Numba-accelerated vectorized Python kernels + Rayon-parallelized Rust batch processing for 10 to 5,000+ elements.
 - **Aether-Guard Safety** — Industrial-grade numerical stability. L2 norm clamping, epsilon-protected division, and NaN/Inf sanitization prevent engine collapses.

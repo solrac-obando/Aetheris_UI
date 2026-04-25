@@ -1,6 +1,7 @@
 use std::ops::{Add, Div, Mul, Sub};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
 pub struct Vec4 {
     pub x: f32,
     pub y: f32,

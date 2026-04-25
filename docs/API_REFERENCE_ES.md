@@ -21,6 +21,8 @@
 - [Renderizador Tkinter (`tkinter_renderer.py`)](#renderizador-tkinter-tkinter_rendererpy)
 - [Puente del Solver (`solver_bridge.py`)](#puente-del-solver-solver_bridgepy)
 - [Puente de Audio (`audio_bridge.py`)](#puente-de-audio-audio_bridgepy)
+- [Puente Headless (`headless_bridge.py`)](#puente-headless-headless_bridgepy)
+- [API Declarativa (`declarative_api.py`)](#api-declarativa-declarative_apipy)
 
 ---
 
@@ -710,3 +712,52 @@ Proveedor proxy REST para PostgreSQL vía endpoint del servidor.
 
 **Parámetros:**
 - `base_url`: URL base del servidor Aetheris.
+
+---
+
+## Puente Headless (`headless_bridge.py`)
+
+### `class HeadlessTextureBridge`
+
+Permite embeber Aetheris en frameworks externos (Flet, PyQt, Web) exponiendo los datos de los frames como texturas o buffers.
+
+#### `__init__(engine, output_format="numpy", frame_width=1280, frame_height=720)`
+
+**Parámetros:**
+- `engine`: Instancia de `AetherEngine`.
+- `output_format`: Formato de salida (`"numpy"`, `"json"`, `"base64"`).
+- `frame_width, frame_height`: Dimensiones del frame de salida.
+
+#### `get_frame_buffer() -> FrameBuffer`
+
+Captura el estado actual del motor y lo devuelve estructurado con metadatos (FPS, recuento de elementos).
+
+---
+
+## API Declarativa (`declarative_api.py`)
+
+Proporciona una interfaz tipo Flutter para construir UIs mediante un árbol de widgets.
+
+### `class Page`
+
+El contenedor raíz que orquestra la traducción del árbol de widgets a elementos nativos.
+
+#### `add(widget: Widget)`
+
+Añade un widget raíz a la página. Al iniciar, calcula automáticamente el layout matemático de todos sus hijos.
+
+### `class Container(Widget)`
+
+Widget versátil para agrupación, márgenes y fondos.
+
+**Atributos:**
+- `bgcolor`: Color de fondo (RGBA).
+- `padding, margin`: Espaciado interno y externo.
+
+### `class Column / Row(Widget)`
+
+Layouts lineales verticales y horizontales.
+
+**Atributos:**
+- `spacing`: Espacio entre elementos hijos.
+- `alignment`: Alineación (`"start"`, `"center"`, `"end"`).

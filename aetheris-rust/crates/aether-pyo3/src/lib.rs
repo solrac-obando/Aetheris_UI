@@ -224,6 +224,10 @@ impl PyAetherEngine {
         }
     }
 
+    pub fn enable_gpu(&mut self) -> bool {
+        self.inner.enable_gpu()
+    }
+
     pub fn register_static_box(&mut self, x: f32, y: f32, w: f32, h: f32, color: &PyVec4, z: i32) {
         self.inner
             .register_element(Box::new(StaticBox::new(x, y, w, h, color.into_inner(), z)));

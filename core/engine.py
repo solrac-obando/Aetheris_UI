@@ -8,7 +8,7 @@ import time
 import json
 import os
 import numpy as np
-from typing import List, Optional
+from typing import List, Optional, cast
 from core.aether_math import StateTensor
 from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver

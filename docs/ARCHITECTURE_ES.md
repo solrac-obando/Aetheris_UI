@@ -19,7 +19,8 @@
 - [11. Física Háptica: Arrastrar, Soltar y Lanzar](#11-haptic-physics-drag-drop--throw)
 - [12. Aether-Guard: Capa de Seguridad Matemática](#12-aether-guard-capa-de-seguridad-matemática)
 - [13. Capa de Audio Impulsada por Física](#13-capa-de-audio-impulsada-por-física)
-- [14. Roadmap: Vectorización hasta 100,000 Elementos](#14-roadmap-vectorización-hasta-100000-elementos)
+- [16. Capa Declarativa M9: Un DSL de Python](#16-capa-declarativa-m9-un-dsl-de-python)
+- [17. Arquitectura Híbrida: Traducción de Intenciones](#17-arquitectura-híbrida-traducción-de-intenciones)
 
 ---
 
@@ -546,10 +547,44 @@ La capa de audio está desacoplada del motor a través de la clase base abstract
 
 ---
 
-## 14. Roadmap: Vectorización hasta 100,000 Elementos
+## 15. Optimización M16: Motor de Sueño (Sleep Engine)
 
-El cuello de botella actual en Aetheris UI es el bucle de Python utilizado para el cálculo de asíntotas (que reside en los objetos `DifferentialElement`). Para alcanzar **más de 100,000 elementos a 60 FPS**, el motor debe evolucionar hacia un **Diseño Puro Orientado a Datos (DOD)**:
+Para reducir la carga cognitiva de la CPU, Aetheris v1.7 introduce el **Motor de Sueño (M16)**. Basado en la observación de que en una UI típica el 75-90% de los elementos son estáticos en cualquier frame dado, el motor implementa una **Máscara Booleana Vectorizada**:
 
-1. **Asíntotas Totalmente Vectorizadas**: Mover la lógica de `element.calculate_asymptotes()` hacia grandes matrices NumPy procesadas por Numba o kernels de GPU.
-2. **Tensores en GPU**: Utilizar `CuPy` o Shaders de Computación de OpenGL puros para mantener los StateTensors en la GPU, eliminando la sobrecarga de transferencia de datos CPU-GPU.
-3. **Sistema de Componentes de Entidad (ECS)**: Reemplazar la jerarquía de `DifferentialElement` orientada a objetos con una estructura de datos plana donde los elementos son solo índices en un arreglo de estado global.
+```python
+# Lógica de Sueño en engine.py
+self._sleep_mask = (np.abs(self._state_tensor.velocity) < self._sleep_epsilons)
+```
+
+Si un elemento tiene velocidad por debajo de un umbral ínfimo (`1e-4`), se marca como "dormido". El solver de física ignora estos elementos en los pases de integración, liberando ciclos de CPU para elementos dinámicos o permitiendo que el hardware entre en estados de baja energía, ahorrando batería en dispositivos móviles.
+
+---
+
+## 16. Capa Declarativa M9: Un DSL de Python
+
+Más allá del JSON y el TensorCompiler, la **API Declarativa (M9)** permite construir árboles de widgets directamente en Python con una sintaxis inspirada en Flutter y Flet.
+
+### El Ciclo de Vida del Widget
+
+1.  **Declaración**: Se define el árbol (`Page` -> `Column` -> `Container` -> `Text`).
+2.  **Pase de Layout Matemático**: Cada widget calcula sus dimensiones absolutas basándose en restricciones de sus padres y su propio contenido.
+3.  **Hidratación Nativa**: Los widgets se "convierten" en `DifferentialElements` físicos que se registran automáticamente en el `AetherEngine`.
+
+Esta capa abstrae toda la complejidad de los vectores de estado y permite al desarrollador enfocarse en la **estructura y jerarquía** de la interfaz.
+
+---
+
+## 17. Arquitectura Híbrida: Traducción de Intenciones
+
+Aetheris UI opera bajo un paradigma de **Traducción de Intenciones**, similar a frameworks web modernos como **Reflex**. Esta arquitectura separa radicalmente la "interfaz para el humano" de la "ejecución para la máquina".
+
+### El Modelo de Capas
+
+1.  **Capa de Intención (Python)**: El desarrollador define "qué" quiere ver. Ya sea mediante JSON o la API Declarativa (v1.7), Python actúa como un cerebro de alto nivel que gestiona la lógica de negocio y la estructura visual.
+2.  **Capa de Traducción**: El `UIBuilder` y el `TensorCompiler` transforman la intención declarativa en coeficientes matemáticos puros (tensores).
+3.  **Capa de Ejecución (Motores Nativos)**: Dependiendo del entorno, Aetheris selecciona el motor de ejecución más eficiente:
+    -   **Escritorio**: Delegación a **Rust + Rayon** para un paralelismo masivo.
+    -   **Web**: Compilación a **WASM** para ejecución en el navegador a 60 FPS.
+    -   **Mobile**: Integración con **Kivy** para renderizado nativo en iOS/Android.
+
+Este enfoque híbrido permite que Aetheris no sea "pesado" para el desarrollador, pero sea "implacable" en rendimiento para el hardware.

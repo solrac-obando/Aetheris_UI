@@ -292,6 +292,12 @@ def odyssey():
     return render_template('odyssey.html')
 
 
+@app.route('/mario')
+def mario():
+    """Serve the Super Aetheris Bros (Web Edition) page."""
+    return render_template('mario.html')
+
+
 @app.route('/api/odyssey/elements')
 def odyssey_elements():
     """API endpoint returning Odyssey media elements for the web frontend."""

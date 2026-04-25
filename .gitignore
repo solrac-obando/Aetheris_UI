@@ -54,4 +54,5 @@ logs/*.log
 .idea/
 build/
 dist/
-*.egg-info/
+*.egg-info/release_v1/
+aetheris-rust/target/
