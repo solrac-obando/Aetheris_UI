@@ -352,9 +352,9 @@ def tick(self, width: int, height: int) -> np.ndarray:
 
 ### M18: Integración con Tauri ✅
 **Ubicación:** `aetheris-rust/aetheris-tauri/`
-**Descripción:** Shell nativo de alto rendimiento que reemplaza a Kivy para escritorio.
+**Descripción:** Alternativa de despliegue nativa (Shell) para escritorio que complementa a Kivy.
 **Features:**
-- **Native Backend**: Comunicación ultra-rápida con el motor Rust core.
-- **WebView Shell**: Renderizado de 50,000 objetos a 60 FPS (HPC).
-- **Cross-Platform**: Base para Windows, macOS y Linux con un solo binario.
+- **Flexible Deployment**: Opción de empaquetado nativo para Windows, macOS y Linux.
+- **High-Performance Shell**: Aprovecha el WebView nativo para visualizaciones masivas (50k+ elementos).
+- **Ecosystem Synergy**: Permite distribuir Aetheris como una app de escritorio independiente.
 - **MCP Enabled**: Control total del ciclo de vida de la ventana desde modelos de IA.

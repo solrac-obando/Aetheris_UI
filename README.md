@@ -40,7 +40,7 @@ This ensures **60 FPS performance** across Linux, Windows, Mac, Web, and Mobile,
 ## Features
 
 - **🚀 Dual-Engine: Python + Rust** — Choose between pure Python or 60x faster Rust at runtime via `EngineSelector`. Automatic fallback if Rust is unavailable.
-- **🖥️ M18: Tauri Desktop Shell** — Native standalone OS window for Windows, macOS, and Linux. Replaces browser dependencies for production desktop apps.
+- **🖥️ M18: Tauri Deployment Shell** — High-performance desktop alternative for Windows, macOS, and Linux. Enables native distribution alongside Kivy and Web targets.
 - **🦾 Static Typing (M8)** — 100% type safety enforced via `typing.Protocol` and strict Mypy compliance.
 - **M1: WASM Ligero** (~200KB) — Lightweight WebAssembly adapter replacing Pyodide (40MB). Canvas 2D + WebGL support.
 - **M2: Batch Asymptotes** — 50,000 elements at 60 FPS with Numba JIT kernels or Rust HPC core.

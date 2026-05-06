@@ -48,8 +48,8 @@ engine = EngineSelector() # Auto-detecta Rust
 ## ✅ SESIÓN FINAL - 5 Mayo 2026: CIERRE M18 Y HARDENING
 
 ### Logros Alcanzados:
-- **M18: Tauri Desktop Shell**: Integración completa de Tauri como ventana nativa (eliminando dependencia del navegador para Desktop).
-- **HPC Rust Engine (Release)**: Compilación final del motor Rust en modo Release, logrando **240+ FPS con 50,000 objetos**.
+- **M18: Tauri Deployment Shell**: Implementada alternativa de despliegue nativo (Shell) para escritorio, permitiendo ejecución standalone fuera del navegador.
+- **HPC Rust Engine (Release)**: Compilación final del motor Rust en modo Release, logrando **240+ FPS con 50,000 objetos** (disponible para todos los targets).
 - **Seguridad (Audit Remediation)**: Aplicadas correcciones para XSS, Inyección de Comandos, Rate Limiting y Validación de Inputs (H-01 a H-04).
 - **MCP AI Integration**: Servidor MCP operativo con herramientas para lanzamiento de Tauri y manipulación de UI mediante IA.
 
