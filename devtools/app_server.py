@@ -15,12 +15,12 @@ import os
 import markupsafe
 from flask import Flask, render_template, send_from_directory, jsonify, request
 
-app = Flask(__name__, 
-            template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
-            static_folder=os.path.dirname(__file__))
-
 # Get the project root directory
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(__name__, 
+            template_folder=os.path.join(os.path.dirname(PROJECT_ROOT), 'templates'),
+            static_folder=os.path.dirname(PROJECT_ROOT))
 
 
 @app.after_request
@@ -107,4 +107,4 @@ def update_intent():
 if __name__ == '__main__':
     # Aetheris Web requires HTTPS for certain features, but for dev we use HTTP
     # Host 127.0.0.1 for H-01 security compliance
-    app.run(host='127.0.0.1', port=8000, debug=True)
+    app.run(host='127.0.0.1', port=8080, debug=True)
