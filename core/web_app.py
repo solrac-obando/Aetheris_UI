@@ -22,15 +22,39 @@ Usage:
     app.run(port=8765)
 """
 import os
+import math
 import time
 import json
+import logging
+import secrets
 import threading
 import http.server
 import socketserver
+import urllib.parse
 from pathlib import Path
 from typing import List, Optional, Any
 
-from core.engine import AetherEngine
+logger = logging.getLogger("aetheris.webapp")
+
+# ── Security Constants ────────────────────────────────────────────────────
+_MAX_COORDINATE = float(os.environ.get("AETHERIS_MAX_COORD", "100000"))
+_MAX_INPUT_STR_LEN = 256
+
+
+def _validate_coord(val, default: float = 0.0) -> float:
+    """Validate and clamp a coordinate from untrusted WebSocket input.
+
+    Rejects NaN, Inf, and values beyond _MAX_COORDINATE.
+    """
+    try:
+        f = float(val)
+        if not math.isfinite(f):
+            return default
+        return max(-_MAX_COORDINATE, min(_MAX_COORDINATE, f))
+    except (ValueError, TypeError):
+        return default
+
+from core.engine_selector import EngineSelector
 from core.web_bridge import WebBridge
 from core.web_server import WebServer
 from core.web_elements import WebElement
@@ -39,20 +63,47 @@ from core.input_manager import InputManager
 
 # ── HTTP Server for serving the hybrid client ───────────────────────
 class _HybridHTTPHandler(http.server.SimpleHTTPRequestHandler):
-    """Serves the hybrid client HTML/JS files."""
+    """Serves the hybrid client HTML/JS files with token-based authentication. (H-01 Fix)"""
     _web_hybrid_dir: str = ""
+    _auth_token: str = ""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=self._web_hybrid_dir, **kwargs)
+
+    def do_GET(self):
+        """Intercept GET requests to validate session token."""
+        parsed_url = urllib.parse.urlparse(self.path)
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        token = query_params.get('token', [None])[0]
+
+        if token != self._auth_token:
+            self.send_error(403, "Forbidden: Missing or invalid session token.")
+            return
+
+        super().do_GET()
+
+    def translate_path(self, path):
+        """Path normalization to prevent Traversal (H-01)."""
+        # Resolve path within directory
+        path = super().translate_path(path)
+        rel_path = os.path.relpath(path, self._web_hybrid_dir)
+        if rel_path.startswith("..") or os.path.isabs(rel_path):
+            return os.path.join(self._web_hybrid_dir, "index.html")
+        return path
 
     def log_message(self, fmt, *args):
         pass  # Suppress HTTP logs
 
 
-def _start_http_server(port: int, web_dir: str) -> socketserver.TCPServer:
-    """Start HTTP server for the hybrid client in a background thread."""
+def _start_http_server(port: int, web_dir: str, auth_token: str) -> socketserver.TCPServer:
+    """Start HTTP server for the hybrid client in a background thread.
+
+    Security: Bound to 127.0.0.1 by default and protected by auth_token.
+    """
     _HybridHTTPHandler._web_hybrid_dir = web_dir
-    server = socketserver.TCPServer(("0.0.0.0", port + 1), _HybridHTTPHandler)
+    _HybridHTTPHandler._auth_token = auth_token
+    http_host = os.environ.get("AETHERIS_HTTP_HOST", "127.0.0.1")
+    server = socketserver.TCPServer((http_host, port + 1), _HybridHTTPHandler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     return server
@@ -85,8 +136,11 @@ class WebApp:
         self.http_port = http_port
         self.ws_port = ws_port
 
+        # H-01: Session token for static file access
+        self._auth_token = secrets.token_urlsafe(16)
+
         # Core components
-        self.engine = AetherEngine()
+        self.engine = EngineSelector()
         self.bridge = WebBridge(container_width=width, container_height=height)
         self.server = WebServer(port=ws_port)
         self._elements: List[WebElement] = []
@@ -94,8 +148,10 @@ class WebApp:
         self._http_server: Optional[socketserver.TCPServer] = None
         self._loop_thread: Optional[threading.Thread] = None
 
-        # Set up WebSocket message handler
+        # Set up WebSocket handlers
         self.server.set_message_handler(self._handle_ws_message)
+        # H-FIX: Send initial_dom only once per new connection (C-01)
+        self.server.set_connect_handler(self._handle_new_client)
 
     def add(self, element: WebElement) -> None:
         """Add a web element to the app."""
@@ -111,41 +167,60 @@ class WebApp:
             self._elements.remove(element)
             self.bridge.unregister_element(idx)
 
+    def _handle_new_client(self, client_id: str) -> None:
+        """Send initial DOM state only once to a newly connected client. (C-01 fix)"""
+        try:
+            initial_dom = self.bridge.get_initial_dom_state()
+            self.server.broadcast(json.dumps({
+                "type": "initial_dom",
+                "elements": initial_dom
+            }))
+            logger.debug("[Aether-Web] initial_dom sent to new client %s", client_id)
+        except Exception as e:
+            logger.warning("[Aether-Web] Failed to send initial_dom to %s: %s", client_id, e)
+
     def _handle_ws_message(self, client_id: str, message: str) -> None:
-        """Handle incoming WebSocket messages from the browser."""
+        """Handle incoming WebSocket messages from the browser.
+
+        Security (H-03): All coordinate values are validated against NaN/Inf
+        and clamped to [-MAX_COORDINATE, MAX_COORDINATE] before use.
+        """
+        # Guard: reject oversized messages before parsing
+        if len(message) > 4096:
+            logger.warning("[Aether-Web] Oversized message from %s (%d bytes), dropping",
+                           client_id, len(message))
+            return
         try:
             data = json.loads(message)
             msg_type = data.get("type", "")
 
             if msg_type == "pointerdown":
-                x = float(data.get("x", 0))
-                y = float(data.get("y", 0))
+                x = _validate_coord(data.get("x", 0))
+                y = _validate_coord(data.get("y", 0))
                 self.engine.handle_pointer_down(x, y)
             elif msg_type == "pointermove":
-                x = float(data.get("x", 0))
-                y = float(data.get("y", 0))
+                x = _validate_coord(data.get("x", 0))
+                y = _validate_coord(data.get("y", 0))
                 self.engine.handle_pointer_move(x, y)
             elif msg_type == "pointerup":
                 self.engine.handle_pointer_up()
             elif msg_type == "input_value":
-                # Handle input value changes
-                element_id = data.get("element_id", "")
-                value = data.get("value", "")
+                # Validate element_id and value before assignment
+                element_id = str(data.get("element_id", ""))[:_MAX_INPUT_STR_LEN]
+                value = str(data.get("value", ""))[:_MAX_INPUT_STR_LEN]
                 for elem in self._elements:
                     if elem._html_id == element_id and hasattr(elem, '_value'):
                         elem._value = value
-        except (json.JSONDecodeError, ValueError, KeyError):
-            pass
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.debug("[Aether-Web] Invalid message from %s: %s", client_id, e)
 
     def _run_loop(self) -> None:
-        """Main physics + sync loop — runs at 60 FPS."""
-        # Send initial DOM state to clients
-        initial_dom = self.bridge.get_initial_dom_state()
-        self.server.broadcast(json.dumps({
-            "type": "initial_dom",
-            "elements": initial_dom
-        }))
+        """Main physics + sync loop — runs at 60 FPS.
 
+        Security (C-01): initial_dom is NO LONGER broadcast here.
+        It is sent once per client connection via _handle_new_client().
+        The loop only broadcasts incremental physics updates.
+        """
         target_dt = 1.0 / 60.0
         while self._running:
             t0 = time.perf_counter()
@@ -153,7 +228,7 @@ class WebApp:
             # Physics tick
             self.engine.tick(self.width, self.height)
 
-            # Sync to web clients
+            # Sync incremental updates to web clients (delta only)
             payload = self.bridge.sync(self._elements)
             self.server.broadcast(json.dumps({
                 "type": "update",
@@ -183,8 +258,9 @@ class WebApp:
         web_hybrid_dir = str(Path(__file__).parent.parent / "demo" / "web_hybrid")
         if os.path.isdir(web_hybrid_dir):
             try:
-                self._http_server = _start_http_server(self.http_port, web_hybrid_dir)
-                print(f"[Aether-Web] HTTP server: http://localhost:{self.http_port + 1}")
+                self._http_server = _start_http_server(self.http_port, web_hybrid_dir, self._auth_token)
+                host = os.environ.get("AETHERIS_HTTP_HOST", "localhost")
+                print(f"[Aether-Web] HTTP server: http://{host}:{self.http_port + 1}?token={self._auth_token}")
             except OSError:
                 print(f"[Aether-Web] HTTP port {self.http_port + 1} in use, skipping")
 
@@ -192,7 +268,7 @@ class WebApp:
         self.server.start()
         print(f"[Aether-Web] WebSocket server: ws://localhost:{self.ws_port}")
         print(f"[Aether-Web] {len(self._elements)} elements registered")
-        print(f"[Aether-Web] Open http://localhost:{self.http_port + 1} in your browser")
+        print(f"[Aether-Web] Open http://{os.environ.get('AETHERIS_HTTP_HOST', 'localhost')}:{self.http_port + 1}?token={self._auth_token} in your browser")
 
         if blocking:
             try:

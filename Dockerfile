@@ -81,7 +81,7 @@ if [ "$RUN_MODE" = "interactive" ]; then\n\
     exec "$@"\n\
 else\n\
     exec xvfb-run -a --server-args="-screen 0 1920x1080x24" "$@"\n\
-fi\n' /entrypoint.sh && chmod +x /entrypoint.sh
+fi\n' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 

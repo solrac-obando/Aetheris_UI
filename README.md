@@ -198,12 +198,26 @@ python3 main.py --kivy
 
 Kivy handles the event loop, canvas drawing, and Y-axis coordinate inversion automatically.
 
-### Docker
+### Docker (Entorno de Desarrollo)
+
+La forma oficial y recomendada de desarrollar, probar y ejecutar Aetheris UI es utilizando el entorno Docker nativo de Linux a través del script `dev.sh`. Este entorno está aislado y pre-configurado con Python, Rust, Maturin y todas las librerías gráficas (SDL2/Tauri) necesarias, protegiendo tu máquina principal.
 
 ```bash
-docker build -t aetheris-ui .
-docker run --rm aetheris-ui
+# 1. Construir la imagen de desarrollo (usa automáticamente el contexto nativo 'default')
+./dev.sh build
+
+# 2. Iniciar el entorno interactivo de desarrollo (con live-reload del código fuente)
+./dev.sh up
+
+# 3. Ejecutar las pruebas automatizadas (entorno one-shot)
+./dev.sh test
+
+# 4. Compilar el motor Rust (PyO3) de forma optimizada
+./dev.sh rust
 ```
+
+> **🤖 AI Instruction / Nota para asistentes de IA:**
+> Future AI instances working on this codebase MUST automatically use `./dev.sh` and the native Docker environment (`docker context use default`) to execute code, run tests, or compile Rust. Do NOT execute the application directly on the host machine to prevent system pollution.
 
 ---
 

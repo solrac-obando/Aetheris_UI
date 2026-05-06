@@ -121,13 +121,18 @@ def stats():
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("🚀 Aetheris M1 Demo Server")
+    print("\U0001f680 Aetheris M1 Demo Server")
     print("=" * 50)
     print("LightWASM Adapter - Starting...")
     print()
-    print("Open your browser at: http://localhost:5000")
+    # Security (C-02): read host/port/debug from environment variables.
+    # FLASK_HOST defaults to 127.0.0.1 (localhost-only).
+    # Set FLASK_HOST=0.0.0.0 only in Docker/isolated environments.
+    flask_host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    flask_port = int(os.environ.get('FLASK_PORT', '5000'))
+    flask_debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    print(f"Open your browser at: http://{flask_host}:{flask_port}")
     print()
     print("Press Ctrl+C to stop")
     print("=" * 50)
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host=flask_host, port=flask_port, debug=flask_debug)

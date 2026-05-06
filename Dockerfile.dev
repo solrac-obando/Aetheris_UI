@@ -1,0 +1,186 @@
+# =============================================================================
+# Aetheris UI - Entorno de Desarrollo Aislado
+# Optimizado para mejoras continuas (M12-M18+)
+# Incluye: Python 3.12 + Rust Stable + Maturin + PyO3 + Dev Tools
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Builder - Compilar dependencias Python (con headers C)
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+# Headers de sistema necesarios para compilar PyAudio, Kivy, NumPy, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    pkg-config \
+    portaudio19-dev \
+    libasound2-dev \
+    libsdl2-dev \
+    libsdl2-image-dev \
+    libsdl2-mixer-dev \
+    libsdl2-ttf-dev \
+    libgl1-mesa-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --prefix=/install -r requirements.txt && \
+    pip install --prefix=/install maturin==1.7.0
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime - Entorno de desarrollo completo
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim AS runtime
+
+ARG RUST_VERSION=stable
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MESA_GL_VERSION_OVERRIDE=3.3 \
+    CARGO_HOME=/usr/local/cargo \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_BUILD_JOBS=1 \
+    CARGO_NET_GIT_FETCH_WITH_CLI=true \
+    PATH="/usr/local/cargo/bin:${PATH}"
+
+# --- Dependencias de sistema: OpenGL + Xvfb + Audio + Dev Tools ---
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build tools (para compilar Rust crates con C deps)
+    build-essential \
+    gcc \
+    g++ \
+    pkg-config \
+    # OpenGL/Mesa (headless rendering)
+    libgl1-mesa-dri \
+    libgl1 \
+    libegl1 \
+    libgles2 \
+    xvfb \
+    # Audio (PyAudio runtime)
+    portaudio19-dev \
+    libasound2-dev \
+    # SDL2 (Kivy runtime)
+    libsdl2-dev \
+    libsdl2-image-dev \
+    libsdl2-mixer-dev \
+    libsdl2-ttf-dev \
+    # Tauri prerequisites (M18)
+    libgtk-3-dev \
+    libwebkit2gtk-4.1-dev \
+    libayatana-appindicator3-dev \
+    librsvg2-dev \
+    # Utilidades generales
+    curl \
+    git \
+    vim \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Instalar Rust ---
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal && \
+    rustup component add clippy rustfmt && \
+    cargo install cargo-watch 2>/dev/null || true
+
+# --- Copiar paquetes Python pre-compilados ---
+COPY --from=builder /install /usr/local
+
+# --- Directorio de trabajo ---
+WORKDIR /app
+
+# --- Health Check ---
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD python3 -c "from core.engine import AetherEngine; e = AetherEngine(); print('OK')" || exit 1
+
+# --- Entrypoint con soporte multi-modo ---
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+echo ""\n\
+echo "╔══════════════════════════════════════════════════════╗"\n\
+echo "║     Aetheris UI - Dev Environment v1.8.5            ║"\n\
+echo "║     Python $(python3 --version | cut -d\" \" -f2)  |  Rust $(rustc --version | cut -d\" \" -f2)              ║"\n\
+echo "╚══════════════════════════════════════════════════════╝"\n\
+echo ""\n\
+\n\
+case "${1:-shell}" in\n\
+    test)\n\
+        echo "🧪 Ejecutando tests..."\n\
+        shift\n\
+        exec xvfb-run -a python3 -m pytest tests/ -v "${@}"\n\
+        ;;\n\
+    test-core)\n\
+        echo "🧪 Tests core..."\n\
+        exec xvfb-run -a python3 -m pytest tests/ -v -m core\n\
+        ;;\n\
+    test-fast)\n\
+        echo "⚡ Tests rápidos (sin stress)..."\n\
+        exec xvfb-run -a python3 -m pytest tests/ -v --ignore=tests/stress --ignore=tests/attacks -x\n\
+        ;;\n\
+    rust-build)\n\
+        echo "🦀 Compilando motor Rust..."\n\
+        cd /app/aetheris-rust\n\
+        exec maturin develop -m crates/aether-pyo3/Cargo.toml --release\n\
+        ;;\n\
+    rust-test)\n\
+        echo "🦀 Tests Rust..."\n\
+        cd /app/aetheris-rust\n\
+        exec cargo test --workspace\n\
+        ;;\n\
+    rust-bench)\n\
+        echo "📊 Benchmark Rust..."\n\
+        cd /app/aetheris-rust\n\
+        exec cargo bench --workspace\n\
+        ;;\n\
+    bench)\n\
+        echo "📊 Benchmark Python GPU vs CPU..."\n\
+        exec xvfb-run -a python3 benchmarks/gpu_vs_cpu.py\n\
+        ;;\n\
+    mypy)\n\
+        echo "🔍 Type checking..."\n\
+        exec python3 -m mypy core/ --config-file pyproject.toml\n\
+        ;;\n\
+    demo)\n\
+        echo "🎮 Ejecutando demo: ${2:-demo_all_components}..."\n\
+        exec xvfb-run -a python3 demo/${2:-demo_all_components}.py\n\
+        ;;\n\
+    web)\n\
+        echo "🌐 Iniciando servidor web..."\n\
+        exec python3 devtools/app_server.py\n\
+        ;;\n\
+    plan)\n\
+        echo "📋 Archivos de mejora disponibles:"\n\
+        ls -la /app/planning/*.md\n\
+        echo ""\n\
+        echo "Usa: cat /app/planning/<archivo>.md"\n\
+        exec bash\n\
+        ;;\n\
+    shell)\n\
+        echo "🐚 Shell interactivo listo."\n\
+        echo "   Comandos útiles:"\n\
+        echo "   → pytest tests/ -v              (tests)"\n\
+        echo "   → cd aetheris-rust && cargo test (Rust tests)"\n\
+        echo "   → maturin develop -m crates/aether-pyo3/Cargo.toml (build PyO3)"\n\
+        echo "   → cat planning/MEJORAS_COMPLETAS.md (ver mejoras)"\n\
+        echo ""\n\
+        exec bash\n\
+        ;;\n\
+    *)\n\
+        exec "$@"\n\
+        ;;\n\
+esac\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["shell"]
+
+# Puertos: Web server (8000) + WebSocket (8765)
+EXPOSE 8000 8765

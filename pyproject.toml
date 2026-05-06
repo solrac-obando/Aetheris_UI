@@ -52,14 +52,14 @@ Issues = "https://github.com/carlosobando/aetheris-ui/issues"
 aetheris = "main:main"
 
 [tool.setuptools.packages.find]
-include = ["core*", "demo*", "wasm*", "templates*", "docs*", "scripts*", "tests*"]
+include = ["core*", "demo*", "wasm*", "templates*", "docs*", "scripts*", "tests*", "planning*", "devtools*", "references*", "benchmarks*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--ignore=tests_stress/"
+addopts = "--ignore=tests/stress/"
 markers = [
     "core: core functional tests (included in public release)",
 ]

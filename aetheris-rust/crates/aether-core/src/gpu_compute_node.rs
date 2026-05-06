@@ -1,4 +1,3 @@
-use wgpu::util::DeviceExt;
 use aether_math::Vec4;
 use bytemuck::{Pod, Zeroable};
 
@@ -91,7 +90,7 @@ impl GPUComputeNode {
             label: Some("Physics Compute Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
-            entry_point: Some("main"),
+            entry_point: "main",
             compilation_options: Default::default(),
             cache: None,
         });

@@ -89,9 +89,33 @@ safe_dt = min(safe_dt, 1.0)      # Cap at 1 second
 
 This prevents the "spiral of death" where a large `dt` (e.g., from a GC pause) causes the physics to explode.
 
+
 ---
 
-## 3. Hooke's Law & the Constraint Solver
+## 3. Rust Engine & EngineSelector (High-Performance Core)
+
+To achieve maximum throughput and bypass the Python Global Interpreter Lock (GIL), Aetheris UI includes a **native Rust implementation** of the physics core.
+
+### The EngineSelector Fachade
+
+The `EngineSelector` acts as an intelligent entry point that decides which implementation to use at runtime:
+
+1.  **Rust Engine**: High-performance implementation using `aether-core` and `aether-math` crates. It uses `Rayon` for multi-threaded parallel computation and `PyO3` for ultra-low latency Python bindings.
+2.  **Python Engine**: Pure Python fallback using Numba/NumPy. Ensures portability on systems without Rust binaries or for rapid prototyping.
+
+### Performance Delta
+
+The Rust engine provides a **17.2x speedup** over the optimized Python implementation:
+- **Python**: ~27 FPS (5,000 elements)
+- **Rust**: **~473 FPS** (5,000 elements)
+
+### Zero-Copy Interop
+
+The interop between Rust and Python is handled via **NumPy Structured Arrays**. Rust populates the memory buffers directly, which are then exposed to Python as NumPy arrays without costly serialization or copying.
+
+---
+
+## 4. Hooke's Law & the Constraint Solver
 
 ### Restoring Force
 

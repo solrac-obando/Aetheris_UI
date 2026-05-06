@@ -11,7 +11,7 @@
     'use strict';
 
     // ── Configuration ──────────────────────────────────────────────
-    const WS_URL = `ws://${window.location.hostname}:${window.location.port || 8765}`;
+    const WS_URL = `ws://${window.location.hostname}:8766`;
     const root = document.getElementById('root');
     const statusText = document.getElementById('status-text');
     const fpsEl = document.getElementById('fps');

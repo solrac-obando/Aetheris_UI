@@ -5,6 +5,9 @@
 # Exclude explicitly the sensitive folders from .tar.gz and .whl
 recursive-exclude tests/stress *
 recursive-exclude tests/attacks *
+recursive-exclude devtools *
+recursive-exclude planning *
+recursive-exclude references *
 
 # Include essential files
 include README.md

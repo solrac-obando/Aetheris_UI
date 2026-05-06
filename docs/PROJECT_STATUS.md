@@ -1,7 +1,7 @@
 # Aetheris UI - Project Status
 
 > Documento de estado del proyecto - Abril 2026
-> Estado: Production Ready (M1, M2, M5, M6)
+> Estado: Production Ready (v1.8.5 - Rust Core Active)
 
 ---
 
@@ -10,11 +10,12 @@
 | Métrica | Valor | Estado |
 |---------|-------|--------|
 | **Bundle Size** | ~200KB | ✅ Production |
+| **FPS (5K elementos)** | 473 FPS (Rust) | ✅ Production |
 | **FPS (50K elementos)** | 60 FPS | ✅ Production |
 | **Safety Margin** | 35% | ✅ Stable |
-| **Tests** | 600+ passing | ✅ Production |
-| **Versión** | v1.7.5 | ✅ Released |
-| **Regresión** | 100% (58/58) | ✅ Passed |
+| **Tests** | 750+ passing | ✅ Production |
+| **Versión** | v1.8.5 | ✅ Released |
+| **Regresión** | 100% | ✅ Passed |
 
 ---
 

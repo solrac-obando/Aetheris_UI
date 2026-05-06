@@ -128,11 +128,12 @@ impl Div<f32> for Vec4 {
     type Output = Vec4;
 
     fn div(self, rhs: f32) -> Vec4 {
+        let safe_rhs = if rhs.abs() < 1e-9 { 1e-9_f32.copysign(rhs) } else { rhs };
         Vec4 {
-            x: self.x / rhs,
-            y: self.y / rhs,
-            w: self.w / rhs,
-            h: self.h / rhs,
+            x: self.x / safe_rhs,
+            y: self.y / safe_rhs,
+            w: self.w / safe_rhs,
+            h: self.h / safe_rhs,
         }
     }
 }

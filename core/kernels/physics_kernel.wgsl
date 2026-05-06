@@ -110,11 +110,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         vel.vh = 0.0;
     }
 
-    // 5. NaB Detection (Cero-Safe)
-    if (is_not_finite(state.x) || is_not_finite(state.y)) {
-        // Fallback: stay at target or reset if needed
-        state.x = target.x;
-        state.y = target.y;
+    // 5. NaN Detection (Full Aether-Guard)
+    if (is_not_finite(state.x) || is_not_finite(state.y) || is_not_finite(state.w) || is_not_finite(state.h)) {
+        state = target;
+    }
+    if (is_not_finite(vel.vx) || is_not_finite(vel.vy) || is_not_finite(vel.vw) || is_not_finite(vel.vh)) {
+        vel.vx = 0.0;
+        vel.vy = 0.0;
+        vel.vw = 0.0;
+        vel.vh = 0.0;
     }
 
     // Output
@@ -123,6 +127,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 
 fn is_not_finite(v: f32) -> bool {
-    // WGSL doesn't have is_finite directly in all targets, but we can check via comparison
-    return v != v || v > 1e38 || v < -1e38;
+    // Aether-Guard: More precise f32 threshold (approx 3.4e38 for positive inf, -3.4e38 for negative)
+    return v != v || v > 3.0e38 || v < -3.0e38;
 }

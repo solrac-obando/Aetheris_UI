@@ -12,6 +12,7 @@ from typing import List, Optional, cast, Any, Dict, Union, Tuple, TYPE_CHECKING
 from core.aether_math import StateTensor
 from core.elements import DifferentialElement, CanvasTextNode, DOMTextNode
 from core import solver_bridge as solver
+from core.solver_bridge import clamp_stiffness_cfl
 from core.state_manager import StateManager
 from core.json_utils import to_json
 from core.tensor_compiler import TensorCompiler
@@ -92,6 +93,14 @@ class AetherEngine:
         self._static_mask: Optional[np.ndarray] = None
         self._sleep_mask: Optional[np.ndarray] = None
         self._sleep_epsilons: Optional[np.ndarray] = None
+        
+        # M17: Object Pool Optimization - Zero Allocation Memory Management
+        self._free_indices: List[int] = []
+        self._element_active: List[bool] = []
+        self._pool_gc_threshold = 0.5
+        self._pool_gc_cooldown_frames = 0
+        self._gc_frames_required = 300
+        self._frame_counter = 0
 
     @property
     def audio_bridge(self) -> Any:
@@ -125,6 +134,8 @@ class AetherEngine:
             return
 
         for i, elem in enumerate(self._elements):
+            if not self._element_active[i]:
+                continue
             self._batch_states[i] = elem.tensor.state
             self._batch_velocities[i] = elem.tensor.velocity
 
@@ -141,6 +152,8 @@ class AetherEngine:
             return
 
         for i, elem in enumerate(self._elements):
+            if not self._element_active[i]:
+                continue
             elem.tensor.state[:] = self._batch_states[i]
             elem.tensor.velocity[:] = self._batch_velocities[i]
         
@@ -150,20 +163,74 @@ class AetherEngine:
                 f"Security: Maximum element limit ({_MAX_ELEMENTS}) exceeded. "
                 f"Rejecting element to prevent DoS attack."
             )
-        self._elements.append(element)
+        
+        # M17: Object Pool - Try to reuse a free slot first
+        if self._free_indices:
+            idx = self._free_indices.pop()
+            self._elements[idx] = element
+            self._element_active[idx] = True
+        else:
+            self._elements.append(element)
+            self._element_active.append(True)
     
     def register(self, element: DifferentialElement) -> None:
         """Alias for register_element() for backwards compatibility."""
         self.register_element(element)
     
     def remove_element(self, element: DifferentialElement) -> None:
-        """Remove an element from the engine."""
+        """Remove an element from the engine - M17: Zero-allocation via pool."""
         if element in self._elements:
-            self._elements.remove(element)
+            idx = self._elements.index(element)
+            # M17: Mark as inactive, don't remove (avoids reallocation)
+            self._element_active[idx] = False
+            self._free_indices.append(idx)
     
     def remove(self, element: DifferentialElement) -> None:
         """Alias for remove_element() for backwards compatibility."""
         self.remove_element(element)
+        
+    def _collect_garbage(self) -> None:
+        """M17: Lightweight GC - Shrink pools when threshold exceeded.
+        
+        Called periodically to free physical RAM if inactive elements
+        exceed threshold for extended period.
+        """
+        if not self._free_indices:
+            self._pool_gc_cooldown_frames = self._gc_frames_required
+            return
+        
+        total_elements = len(self._elements)
+        if total_elements == 0:
+            return
+        
+        inactive_count = len(self._free_indices)
+        inactive_ratio = inactive_count / total_elements
+        
+        # Check if threshold exceeded
+        if inactive_ratio < self._pool_gc_threshold:
+            self._pool_gc_cooldown_frames = self._gc_frames_required
+            return
+        
+        # Decrement cooldown
+        self._pool_gc_cooldown_frames -= 1
+        if self._pool_gc_cooldown_frames > 0:
+            return
+        
+        # M17: Actually shrink - compact elements
+        new_elements = []
+        new_active = []
+        
+        for elem, active in zip(self._elements, self._element_active):
+            if active:
+                new_elements.append(elem)
+                new_active.append(True)
+        
+        self._elements = new_elements
+        self._element_active = new_active
+        self._free_indices = []  # All gaps eliminated after compaction
+        self._pool_gc_cooldown_frames = self._gc_frames_required
+        
+        self._batch_dirty = True
         
     def register_state(self, name: str, state_data: dict) -> None:
         pass
@@ -232,6 +299,11 @@ class AetherEngine:
         n_elements = len(self._elements)
         if n_elements == 0:
             return np.zeros(0, dtype=[('rect', 'f4', 4), ('color', 'f4', 4), ('z', 'i4')])
+
+        # M17: Periodic GC check using cumulative frame counter
+        self._frame_counter += 1
+        if self._frame_counter % 300 == 0:
+            self._collect_garbage()
 
         # Circuit Breaker: If tick is too slow, skip expensive operations
         if n_elements > _MAX_ELEMENTS // 2:
@@ -453,6 +525,10 @@ class AetherEngine:
                 if hasattr(element, '_viscosity'):
                     element_viscosity = min(element._viscosity * viscosity_multiplier, 1.0)
 
+                # Aether-Guard: CFL stability clamp to prevent oscillation
+                if self._dt > 0.0:
+                    stiffness = clamp_stiffness_cfl(float(stiffness), self._dt)
+
                 if self.input_manager.is_dragging and self.input_manager.dragged_element_index == idx:
                     rect = element.tensor.state
                     drag_force = self.input_manager.calculate_drag_force(
@@ -501,6 +577,8 @@ class AetherEngine:
     
     @property
     def element_count(self) -> int:
+        if self._element_active:
+            return sum(1 for a in self._element_active if a)
         return len(self._elements)
     
     def get_all_elements(self) -> list:

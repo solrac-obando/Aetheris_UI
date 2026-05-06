@@ -85,14 +85,15 @@ class WebBridge:
         self._last_sync_time = time.perf_counter()
 
         # Security: Limit elements to prevent DoS
-        if len(elements) > _MAX_ELEMENTS_PER_SYNC:
+        original_count = len(elements)
+        if original_count > _MAX_ELEMENTS_PER_SYNC:
             elements = elements[:_MAX_ELEMENTS_PER_SYNC]
 
         payload = {
             "frame": self._sync_count,
             "timestamp": self._last_sync_time,
             "elements": [],
-            "truncated": len(elements) < len(elements) if hasattr(elements, '__len__') else False
+            "truncated": original_count > _MAX_ELEMENTS_PER_SYNC
         }
 
         for idx, elem in enumerate(elements):

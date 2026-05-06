@@ -178,6 +178,9 @@ class HeadlessTextureBridge:
         states = np.zeros((len(elements), self._state_dim), dtype=np.float32)
         
         for i, elem in enumerate(elements):
+            # M17 Safety: skip disposed elements
+            if elem.tensor is None:
+                continue
             # Get state tensor from element
             tensor = elem.tensor
             state = tensor.state

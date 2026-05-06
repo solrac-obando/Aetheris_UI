@@ -89,7 +89,8 @@ class ElementPool:
         """Dispose all elements currently in pools and clear the pools."""
         for pool in self._pools.values():
             for element in pool:
-                # Force disposal of pooled elements
-                element._disposed = False # Unmark for dispose to work
-                element.dispose()
+                if not getattr(element, '_disposed', True):
+                    element.dispose()
+                elif hasattr(element, 'tensor') and element.tensor is not None:
+                    element.tensor = None
         self._pools.clear()

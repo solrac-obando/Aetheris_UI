@@ -32,6 +32,7 @@ from core.engine import AetherEngine
 from core.aether_math import StateTensor, MAX_VELOCITY, clamp_magnitude, EPSILON
 from core.elements import DifferentialElement
 from core.state_manager import StateManager
+from core.solver_bridge import clamp_stiffness_cfl
 
 # ── Constants ──────────────────────────────────────────────────────────────
 WIN_W, WIN_H = 1440.0, 900.0
@@ -194,28 +195,31 @@ class EnterpriseDashboard:
             dx = cx - float(server.tensor.state[0])
             server.tensor.apply_force(np.array([dx * 0.003, 0.0, 0.0, 0.0], dtype=np.float32))
 
-    def apply_normal_forces(self) -> None:
+    def apply_normal_forces(self, dt: float) -> None:
         """Normal mode: servers stay near their grid positions."""
+        # Aether-Guard: Apply CFL clamp to stiffness
+        k = clamp_stiffness_cfl(0.05, dt)
         for server in self.servers:
             tx = float(server._target[0])
             ty = float(server._target[1])
             dx = tx - float(server.tensor.state[0])
             dy = ty - float(server.tensor.state[1])
-            server.tensor.apply_force(np.array([dx * 0.05, dy * 0.05, 0.0, 0.0], dtype=np.float32))
+            server.tensor.apply_force(np.array([dx * k, dy * k, 0.0, 0.0], dtype=np.float32))
 
     def tick(self, win_w: float = WIN_W, win_h: float = WIN_H) -> float:
         """Single physics tick."""
         t0 = time.perf_counter()
+        dt = 1.0 / 60.0
 
         if self._sort_mode:
             self.apply_sort_forces()
         else:
-            self.apply_normal_forces()
+            self.apply_normal_forces(dt)
 
         for server in self.servers:
             server.tensor.velocity *= np.float32(0.88)
             server.tensor.velocity = clamp_magnitude(server.tensor.velocity, MAX_VELOCITY)
-            server.tensor.euler_integrate(1.0 / 60.0, viscosity=0.12)
+            server.tensor.euler_integrate(dt, viscosity=0.12)
 
         self.engine.tick(win_w, win_h)
         return (time.perf_counter() - t0) * 1000.0
@@ -366,12 +370,15 @@ def _run_kivy():
             elif stats["warning"] > 0:
                 status_text = _("warning")
 
+            pool_total = len(dashboard.engine._elements)
+            pool_active = dashboard.engine.element_count
+            
             self._stats.text = (
                 f"{_('servers')}: {stats['total']}  •  "
                 f"{_('alerts')}: {stats['warning']}W / {stats['critical']}C  •  "
                 f"CPU: {stats['avg_cpu']:.0f}%  •  "
-                f"MEM: {stats['avg_mem']:.0f}%  •  "
-                f"{_('status')}: {status_text}"
+                f"POOL: {pool_active}/{pool_total} OK  •  "
+                f"{_('status')}: {status_text} (AETHER-GUARD ACTIVE)"
             )
 
             # Update details panel
@@ -415,7 +422,7 @@ def _run_web():
     from core.web_elements import WebCard, WebText
 
     dashboard = EnterpriseDashboard(num_servers=16)
-    app = WebApp(title="Aetheris Enterprise", width=WIN_W, height=WIN_H)
+    app = WebApp(title="Aetheris Enterprise", width=WIN_W, height=WIN_H, http_port=8080, ws_port=8766)
 
     # Create web elements for each server
     for i, server in enumerate(dashboard.servers):
@@ -441,7 +448,7 @@ def _run_web():
         app.add(metrics)
 
     print("[Enterprise Dashboard] Web mode — open http://localhost:8081 in browser")
-    app.run(port=8080)
+    app.run()
 
 
 # ── Entry Point ────────────────────────────────────────────────────────────

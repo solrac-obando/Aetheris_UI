@@ -16,9 +16,16 @@ with no known vulnerabilities (CVE-free as of 2024-03).
 """
 import asyncio
 import json
+import os
 import threading
 import time
-from typing import Dict, Any, Optional, Callable, Set
+from typing import Dict, Any, Optional, Callable, Set, List
+
+# ── Security & Rate Limiting Constants (H-04) ─────────────────────────────
+MAX_CLIENTS = int(os.environ.get('AETHERIS_MAX_CLIENTS', '50'))
+MAX_MESSAGE_SIZE = int(os.environ.get('AETHERIS_MAX_MSG_SIZE', str(64 * 1024))) # 64KB
+MSG_RATE_LIMIT = int(os.environ.get('AETHERIS_MSG_RATE_LIMIT', '100')) # msgs per second
+RATE_LIMIT_WINDOW = 1.0 # 1 second
 
 try:
     import websockets
@@ -60,6 +67,9 @@ class WebServer:
         self._on_disconnect: Optional[Callable] = None
         self._server_instance = None
         self._stop_flag = threading.Event()
+        
+        # H-04: Rate limiting state
+        self._rate_limits: Dict[str, List[float]] = {} # client_id -> list of message timestamps
 
     def start(self) -> None:
         """Start the WebSocket server in a background thread."""
@@ -85,12 +95,31 @@ class WebServer:
         stop_event = asyncio.Event()
 
         async def handler(websocket):
+            if len(self._clients) >= MAX_CLIENTS:
+                await websocket.close(1013, "Server full (MAX_CLIENTS reached)")
+                return
+
             client_id = f"client_{id(websocket)}"
             self._clients[client_id] = websocket
+            self._rate_limits[client_id] = []
+            
             if self._on_connect:
                 self._on_connect(client_id)
             try:
                 async for message in websocket:
+                    # H-04: Rate Limiting check
+                    now = time.time()
+                    timestamps = self._rate_limits.get(client_id, [])
+                    # Remove timestamps older than window
+                    timestamps = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+                    
+                    if len(timestamps) >= MSG_RATE_LIMIT:
+                        # Too many messages, drop this one
+                        continue
+                    
+                    timestamps.append(now)
+                    self._rate_limits[client_id] = timestamps
+                    
                     self._message_count += 1
                     if self._on_message:
                         self._on_message(client_id, message)
@@ -98,12 +127,14 @@ class WebServer:
                 pass
             finally:
                 self._clients.pop(client_id, None)
+                self._rate_limits.pop(client_id, None)
                 if self._on_disconnect:
                     self._on_disconnect(client_id)
 
         async def main():
             self._server_instance = await websockets.serve(
-                handler, self.host, self.port
+                handler, self.host, self.port,
+                max_size=MAX_MESSAGE_SIZE
             )
             while not self._stop_flag.is_set():
                 await asyncio.sleep(0.1)

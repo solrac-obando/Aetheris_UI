@@ -13,7 +13,7 @@ import time
 import sys
 import numpy as np
 import json
-from core.engine import AetherEngine
+from core.engine_selector import EngineSelector
 from core.elements import StaticBox, SmartPanel, SmartButton, FlexibleTextNode
 from core.renderer_base import MockRenderer
 from core.tkinter_renderer import TkinterRenderer
@@ -136,8 +136,8 @@ def main(use_tkinter=False, use_gl=False, use_kivy=False):
     print("Decoupled Mathematical Engine + Renderer")
     print()
     
-    # Initialize the mathematical engine (physics + AI)
-    engine = AetherEngine()
+    # Initialize the mathematical engine (H-05: Using EngineSelector for parity)
+    engine = EngineSelector()
     
     # Build elements from intent using UIBuilder
     builder = UIBuilder()

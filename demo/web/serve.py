@@ -30,7 +30,8 @@ class WASMHandler(SimpleHTTPRequestHandler):
 
 def main(port=8080):
     os.chdir(str(WEB_DIR))
-    server = HTTPServer(('0.0.0.0', port), WASMHandler)
+    host = os.environ.get("AETHERIS_HTTP_HOST", "127.0.0.1")
+    server = HTTPServer((host, port), WASMHandler)
     print(f"=" * 50)
     print(f"  AETHER-WEB Sandbox Server")
     print(f"  http://localhost:{port}")

@@ -13,10 +13,30 @@ pub struct RenderData {
     pub z: i32,
 }
 
+// M17: Concrete Rust Dynamic Limits
+const MAX_ELEMENTS_LIMIT: usize = 4000;
+const SAFETY_MARGIN: f32 = 0.35;
+const GC_THRESHOLD: f32 = 0.5;
+const GC_FRAMES_REQUIRED: u32 = 300;
+
+pub struct AetherEngine {
+    elements: Vec<Box<dyn DifferentialElement>>,
+    last_instant: Option<Instant>,
+    dt: f64,
+    state_manager: StateManager,
+    input_manager: InputManager,
+    default_stiffness: f32,
+    default_viscosity: f32,
+    batch_states: Vec<Vec4>,
+    batch_velocities: Vec<Vec4>,
+    batch_targets: Vec<Vec4>,
     batch_forces: Vec<Vec4>,
     gpu_node: Option<crate::gpu_compute_node::GPUComputeNode>,
     gpu_device: Option<wgpu::Device>,
     gpu_queue: Option<wgpu::Queue>,
+    free_indices: Vec<usize>,
+    element_active: Vec<bool>,
+    pool_gc_cooldown: u32,
 }
 
 impl Default for AetherEngine {
@@ -36,6 +56,9 @@ impl Default for AetherEngine {
             gpu_node: None,
             gpu_device: None,
             gpu_queue: None,
+            free_indices: Vec::new(),
+            element_active: Vec::new(),
+            pool_gc_cooldown: GC_FRAMES_REQUIRED,
         }
     }
 }
@@ -43,6 +66,15 @@ impl Default for AetherEngine {
 impl AetherEngine {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn get_optimal_max_elements() -> usize {
+        let cpu_count = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(1);
+        let base = if cpu_count >= 8 { 1000 } else { 800 };
+        let theoretical = cpu_count * base;
+        (theoretical as f32 * (1.0 - SAFETY_MARGIN)) as usize
     }
 
     pub fn enable_gpu(&mut self) -> bool {
@@ -54,7 +86,7 @@ impl AetherEngine {
         }));
 
         if let Some(adapter) = adapter {
-            let (device, queue) = pollster::block_on(adapter.request_device(
+            match pollster::block_on(adapter.request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("Aether GPUDevice"),
                     required_features: wgpu::Features::empty(),
@@ -62,28 +94,121 @@ impl AetherEngine {
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
-            )).unwrap();
-
-            let node = crate::gpu_compute_node::GPUComputeNode::new(&device);
-            self.gpu_device = Some(device);
-            self.gpu_queue = Some(queue);
-            self.gpu_node = Some(node);
-            true
+            )) {
+                Ok((device, queue)) => {
+                    let node = crate::gpu_compute_node::GPUComputeNode::new(&device);
+                    self.gpu_device = Some(device);
+                    self.gpu_queue = Some(queue);
+                    self.gpu_node = Some(node);
+                    true
+                }
+                Err(_e) => {
+                    false
+                }
+            }
         } else {
             false
         }
     }
 
-    pub fn register_element(&mut self, element: Box<dyn DifferentialElement>) {
-        self.elements.push(element);
+    pub fn register_element(&mut self, element: Box<dyn DifferentialElement>) -> Result<(), String> {
+        // M17 Audit: assert vectors are synchronized
+        debug_assert_eq!(
+            self.elements.len(),
+            self.element_active.len(),
+            "Aether-Guard: elements/active vectors desynchronized"
+        );
+        
+        let max_elements = std::cmp::min(MAX_ELEMENTS_LIMIT, Self::get_optimal_max_elements());
+        
+        if self.elements.len() >= max_elements {
+            return Err(format!(
+                "Security: Maximum element limit ({}) exceeded.",
+                max_elements
+            ));
+        }
+        
+        if let Some(idx) = self.free_indices.pop() {
+            self.elements[idx] = element;
+            self.element_active[idx] = true;
+        } else {
+            self.elements.push(element);
+            self.element_active.push(true);
+        }
+        Ok(())
+    }
+
+    pub fn remove_element(&mut self, idx: usize) -> bool {
+        // M17 Audit: assert vectors are synchronized
+        debug_assert_eq!(
+            self.elements.len(),
+            self.element_active.len(),
+            "Aether-Guard: elements/active vectors desynchronized"
+        );
+        
+        if idx >= self.elements.len() {
+            return false;
+        }
+        if !self.element_active[idx] {
+            return false;
+        }
+        self.element_active[idx] = false;
+        self.free_indices.push(idx);
+        true
     }
 
     pub fn element_count(&self) -> usize {
-        self.elements.len()
+        self.element_active.iter().filter(|&&a| a).count()
+    }
+
+    fn collect_garbage(&mut self) {
+        if self.free_indices.is_empty() {
+            self.pool_gc_cooldown = GC_FRAMES_REQUIRED;
+            return;
+        }
+        let total = self.elements.len();
+        if total == 0 {
+            return;
+        }
+        let inactive = self.free_indices.len();
+        let ratio = inactive as f32 / total as f32;
+        if ratio < GC_THRESHOLD {
+            self.pool_gc_cooldown = GC_FRAMES_REQUIRED;
+            return;
+        }
+        if self.pool_gc_cooldown > 0 {
+            self.pool_gc_cooldown -= 1;
+            return;
+        }
+        
+        // M17 Audit: assert vectors are synchronized
+        debug_assert_eq!(
+            self.elements.len(),
+            self.element_active.len(),
+            "Aether-Guard: elements/active vectors desynchronized"
+        );
+        
+        let mut new_elements = Vec::with_capacity(total - inactive);
+        let mut new_active = Vec::with_capacity(total - inactive);
+        
+        for (elem, active) in self.elements.drain(..).zip(self.element_active.drain(..)) {
+            if active {
+                new_elements.push(elem);
+                new_active.push(true);
+            }
+        }
+        
+        self.elements = new_elements;
+        self.element_active = new_active;
+        self.free_indices.clear();
+        self.pool_gc_cooldown = GC_FRAMES_REQUIRED;
     }
 
     pub fn handle_pointer_down(&mut self, x: f32, y: f32) -> Option<usize> {
         for idx in (0..self.elements.len()).rev() {
+            if !self.element_active[idx] {
+                continue;
+            }
             let elem = &self.elements[idx];
             let s = elem.tensor().state;
             if x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h {
@@ -110,7 +235,7 @@ impl AetherEngine {
 
     pub fn handle_pointer_up(&mut self) {
         if let Some(idx) = self.input_manager.dragged_element_index() {
-            if idx < self.elements.len() {
+            if idx < self.elements.len() && self.element_active[idx] {
                 let (vx, vy) = self.input_manager.get_throw_velocity();
                 if let Some(elem) = self.elements.get_mut(idx) {
                     let tensor = elem.tensor_mut();
@@ -130,30 +255,43 @@ impl AetherEngine {
         };
         self.last_instant = Some(now);
 
-        let dt = if self.dt < 0.0001 {
+        let dt_val = if self.dt < 0.0001 {
             1.0 / 60.0
         } else {
             self.dt.clamp(0.001, 1.0)
         } as f32;
-        let n = self.elements.len();
+        
+        let n = self.element_active.iter().filter(|&&a| a).count();
 
         if n == 0 {
             return Vec::new();
+        }
+
+        if self.pool_gc_cooldown > 0 {
+            self.pool_gc_cooldown -= 1;
+        } else {
+            self.collect_garbage();
         }
 
         let viscosity_multiplier = self.state_manager.check_teleportation_shock(win_w, win_h);
         let active_viscosity = (self.default_viscosity * viscosity_multiplier).min(1.0);
 
         let use_batch = n >= 10;
+        let stiffness = self.default_stiffness;
 
         if use_batch {
             self.ensure_batch_buffers(n);
 
+            let mut active_idx = 0;
             for (idx, element) in self.elements.iter().enumerate() {
+                if !self.element_active[idx] {
+                    continue;
+                }
                 let target = element.calculate_asymptotes(win_w, win_h);
-                self.batch_targets[idx] = target;
-                self.batch_states[idx] = element.tensor().state;
-                self.batch_velocities[idx] = element.tensor().velocity;
+                self.batch_targets[active_idx] = target;
+                self.batch_states[active_idx] = element.tensor().state;
+                self.batch_velocities[active_idx] = element.tensor().velocity;
+                active_idx += 1;
             }
 
             if let (Some(node), Some(device), Some(queue)) = (&mut self.gpu_node, &self.gpu_device, &self.gpu_queue) {
@@ -161,7 +299,7 @@ impl AetherEngine {
                     lerp_factor: stiffness,
                     container_w: win_w,
                     container_h: win_h,
-                    dt,
+                    dt: dt_val,
                     viscosity: active_viscosity,
                     boundary_k: 0.5,
                     snap_dist: 0.5,
@@ -205,25 +343,33 @@ impl AetherEngine {
                     &mut self.batch_states[..n],
                     &mut self.batch_velocities[..n],
                     &self.batch_forces[..n],
-                    dt,
+                    dt_val,
                     active_viscosity,
                     5000.0,
                 );
             }
 
-            for (i, element) in self.elements.iter_mut().enumerate() {
+            active_idx = 0;
+            for (idx, element) in self.elements.iter_mut().enumerate() {
+                if !self.element_active[idx] {
+                    continue;
+                }
                 let tensor = element.tensor_mut();
-                tensor.state = self.batch_states[i];
-                tensor.velocity = self.batch_velocities[i];
+                tensor.state = self.batch_states[active_idx];
+                tensor.velocity = self.batch_velocities[active_idx];
                 tensor.acceleration = Vec4::ZERO;
+                active_idx += 1;
             }
         } else {
             let drag_idx = self.input_manager.dragged_element_index();
             let is_dragging = self.input_manager.is_dragging();
-            for idx in 0..n {
-                let state = self.elements[idx].tensor().state;
-                let target = self.elements[idx].calculate_asymptotes(win_w, win_h);
-                let stiffness = self.default_stiffness;
+            
+            for (idx, element) in self.elements.iter_mut().enumerate() {
+                if !self.element_active[idx] {
+                    continue;
+                }
+                let state = element.tensor().state;
+                let target = element.calculate_asymptotes(win_w, win_h);
 
                 let force = if is_dragging && drag_idx == Some(idx) {
                     self.input_manager
@@ -235,14 +381,17 @@ impl AetherEngine {
                 let boundary = solver::calculate_boundary_forces(state, win_w, win_h, 0.5);
                 let total_force = force + boundary;
 
-                let tensor = self.elements[idx].tensor_mut();
+                let tensor = element.tensor_mut();
                 tensor.apply_force(total_force);
-                tensor.euler_integrate(dt, active_viscosity, Some(&target));
+                tensor.euler_integrate(dt_val, active_viscosity, Some(&target));
             }
         }
 
         let mut result = Vec::with_capacity(n);
-        for element in &self.elements {
+        for (idx, element) in self.elements.iter().enumerate() {
+            if !self.element_active[idx] {
+                continue;
+            }
             result.push(RenderData {
                 rect: element.tensor().state,
                 color: element.color(),
@@ -263,7 +412,10 @@ impl AetherEngine {
 
     pub fn get_ui_metadata(&self) -> String {
         let mut parts = Vec::new();
-        for element in &self.elements {
+        for (idx, element) in self.elements.iter().enumerate() {
+            if !self.element_active[idx] {
+                continue;
+            }
             if let Some(meta) = element.metadata() {
                 parts.push(format!(
                     "\"{}\": {}",

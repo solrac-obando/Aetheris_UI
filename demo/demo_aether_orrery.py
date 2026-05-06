@@ -82,9 +82,7 @@ def _physics_kernel(pos, vel, edge_i, edge_j, cat_ids, n_edges,
         a, b = edge_i[e], edge_j[e]
         dx = pos[b, 0] - pos[a, 0]
         dy = pos[b, 1] - pos[a, 1]
-        dist = np.sqrt(dx * dx + dy * dy)
-        if dist < 1e-9:
-            dist = 1e-9
+        dist = max(np.sqrt(dx * dx + dy * dy), 1.0)
         nx, ny = dx / dist, dy / dist
         stretch = dist - rest_len
         fx = -spring_k * stretch * nx
@@ -103,9 +101,7 @@ def _physics_kernel(pos, vel, edge_i, edge_j, cat_ids, n_edges,
         for j in range(i + 1, n):
             dx = pos[j, 0] - pos[i, 0]
             dy = pos[j, 1] - pos[i, 1]
-            d = np.sqrt(dx * dx + dy * dy)
-            if d < 1e-9:
-                d = 1e-9
+            d = max(np.sqrt(dx * dx + dy * dy), 1.0)
             nx, ny = dx / d, dy / d
             if cat_ids[i] == cat_ids[j]:
                 # Attract
@@ -127,8 +123,8 @@ def _physics_kernel(pos, vel, edge_i, edge_j, cat_ids, n_edges,
         for j in range(i + 1, n):
             dx = pos[j, 0] - pos[i, 0]
             dy = pos[j, 1] - pos[i, 1]
-            d = np.sqrt(dx * dx + dy * dy)
-            if d < min_d and d > 1e-9:
+            d = max(np.sqrt(dx * dx + dy * dy), 1.0)
+            if d < min_d:
                 push = (min_d - d) * 0.5
                 nx, ny = dx / d, dy / d
                 forces[i, 0] -= nx * push
@@ -328,8 +324,8 @@ def _run_kivy():
     class OrreryWidget(Widget):
         def __init__(self, **kw):
             super().__init__(**kw)
-            self._title = Label(text="AETHER-ORRERY  |  Force-Directed Physics Graph",
-                                pos=(20, WIN_H - 35), color=(0.5, 0.5, 0.6, 1), font_size=16)
+            self._title = Label(text="AETHER-ORRERY  |  Physics Graph (AETHER-GUARD PROTECTED)",
+                                pos=(20, WIN_H - 35), color=(0.5, 0.7, 1.0, 1), font_size=16)
             self.add_widget(self._title)
             self._legend = Label(text="", pos=(20, 20), color=(0.4, 0.4, 0.5, 1),
                                  font_size=11, halign="left", valign="top",

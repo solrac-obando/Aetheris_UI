@@ -1,0 +1,117 @@
+# =============================================================================
+# Aetheris UI - Entorno de Desarrollo Aislado
+# Uso: docker-compose -f docker-compose.dev.yml up aetheris-dev
+# =============================================================================
+
+services:
+  # -----------------------------------------------------------------------
+  # Servicio principal: shell interactivo de desarrollo
+  # -----------------------------------------------------------------------
+  aetheris-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: aetheris_dev_env:latest
+    container_name: aetheris-dev-env
+    tty: true
+    stdin_open: true
+    command: shell
+    working_dir: /app
+    volumes:
+      # Código fuente (live-reload)
+      - ./core:/app/core
+      - ./tests:/app/tests
+      - ./demo:/app/demo
+      - ./wasm:/app/wasm
+      - ./devtools:/app/devtools
+      - ./docs:/app/docs
+      - ./planning:/app/planning
+      - ./benchmarks:/app/benchmarks
+      - ./static:/app/static
+      - ./templates:/app/templates
+      - ./scripts:/app/scripts
+      - ./aetheris-rust/crates:/app/aetheris-rust/crates
+      - ./aetheris-rust/Cargo.toml:/app/aetheris-rust/Cargo.toml
+      - ./aetheris-rust/Cargo.lock:/app/aetheris-rust/Cargo.lock
+      - ./main.py:/app/main.py
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./requirements.txt:/app/requirements.txt
+      - ./README.md:/app/README.md
+      # Caché persistente (NO se pierde al destruir el contenedor)
+      - rust-target-cache:/app/aetheris-rust/target
+      - cargo-registry-cache:/usr/local/cargo/registry
+    environment:
+      - RUN_MODE=headless
+      - MGL_WINDOW_BACKEND=headless
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - RUST_LOG=info
+      - CARGO_INCREMENTAL=1
+    ports:
+      - "8000:8000"     # Web server (Flask)
+      - "8765:8765"     # WebSocket
+    networks:
+      - aetheris-dev-net
+
+  # -----------------------------------------------------------------------
+  # Tests rápidos (one-shot, se destruye al terminar)
+  # -----------------------------------------------------------------------
+  aetheris-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: aetheris-test-runner
+    command: test-fast
+    working_dir: /app
+    volumes:
+      - ./core:/app/core
+      - ./tests:/app/tests
+      - ./demo:/app/demo
+      - ./wasm:/app/wasm
+      - ./main.py:/app/main.py
+      - ./pyproject.toml:/app/pyproject.toml
+    environment:
+      - RUN_MODE=headless
+      - MGL_WINDOW_BACKEND=headless
+    networks:
+      - aetheris-dev-net
+    profiles:
+      - test
+
+  # -----------------------------------------------------------------------
+  # Compilador Rust (one-shot, genera el .so de PyO3)
+  # -----------------------------------------------------------------------
+  aetheris-rust-build:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: aetheris-rust-builder
+    command: rust-build
+    working_dir: /app
+    volumes:
+      - ./aetheris-rust/crates:/app/aetheris-rust/crates
+      - ./aetheris-rust/Cargo.toml:/app/aetheris-rust/Cargo.toml
+      - ./aetheris-rust/Cargo.lock:/app/aetheris-rust/Cargo.lock
+      - ./core:/app/core
+      - rust-target-cache:/app/aetheris-rust/target
+      - cargo-registry-cache:/usr/local/cargo/registry
+    environment:
+      - CARGO_INCREMENTAL=1
+      - RUST_LOG=info
+    networks:
+      - aetheris-dev-net
+    profiles:
+      - rust
+
+# -----------------------------------------------------------------------
+# Volúmenes nombrados (persistentes entre reinicios)
+# -----------------------------------------------------------------------
+volumes:
+  rust-target-cache:
+    name: aetheris-rust-target
+  cargo-registry-cache:
+    name: aetheris-cargo-registry
+
+networks:
+  aetheris-dev-net:
+    driver: bridge

@@ -2,20 +2,19 @@
 # REPOSITORY SANITATION: GitHub Public Policies
 # =============================================================================
 
-# --- Internal Documentation & Sessions ---
+# --- Internal Documentation & Sessions (moved outside project) ---
 session-*.md
 aetheris_UI_session*.md
 aetheris7.md
-PLAN_WEB_WASM.md
 MEJORAS.md
-BENCHMARK.md
 AETHERIS_AUDIT.md
 aetherisUI-desarrollo-inicial.md
 *report.md
 *assessment.md
 
-# --- Research & Scratch ---
-scratch/
+# --- Research, Scratch & References ---
+devtools/scratch/
+references/
 .auto-audit/
 *.pdf
 
@@ -23,9 +22,6 @@ scratch/
 tests/stress/**
 tests/attacks/**
 tests/local_torture_test.py
-tests_stress/
-*stress*
-*estres*
 *attack*
 *ataque*
 *pressure*
@@ -54,5 +50,5 @@ logs/*.log
 .idea/
 build/
 dist/
-*.egg-info/release_v1/
+*.egg-info/
 aetheris-rust/target/

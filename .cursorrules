@@ -1,0 +1,19 @@
+# Reglas Globales para Asistentes de IA (Aetheris UI)
+
+1. **Entorno de Desarrollo Aislado (Docker):** 
+   NUNCA ejecutes código, pruebes la aplicación, ni compiles dependencias de Rust directamente en la máquina host.
+   SIEMPRE debes utilizar el entorno de desarrollo Docker provisto.
+   
+2. **Contexto Nativo de Docker:**
+   Asegúrate siempre de usar el contexto de Docker nativo de Linux y NO el entorno de Docker Desktop. 
+   Para garantizar esto, utiliza exclusivamente el script `dev.sh` que se encuentra en la raíz del proyecto.
+   Comando base interno: `docker context use default`.
+
+3. **Uso de dev.sh:**
+   - Para levantar una terminal interactiva: `./dev.sh up`
+   - Para correr los tests unitarios: `./dev.sh test`
+   - Para recompilar la librería de Rust (PyO3): `./dev.sh rust`
+   - Para construir la imagen (si se modificaron dependencias): `./dev.sh build`
+
+4. **Flujo de Trabajo Híbrido (Python/Rust):**
+   Aetheris UI es un motor de UI basado en físicas que soporta tanto una implementación pura en Python como una acelerada en Rust. La lógica visual debe estar siempre abstraída para que el `EngineSelector` pueda decidir cuál motor utilizar en tiempo de ejecución.

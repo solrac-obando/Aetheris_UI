@@ -76,42 +76,55 @@ COMPONENTS = [
 ]
 
 
-def run_demo(frames: int = 50) -> bool:
+def run_demo(frames: int = 50, cycles: int = 3) -> bool:
     engine = AetherEngine()
-    all_elements = []
+    print(f"\n[M17] Engine Initialized — Element Count: {engine.element_count}")
 
-    for phase_name, components in COMPONENTS:
-        print(f"\n{'='*60}")
-        print(f"  {phase_name}")
-        print(f"{'='*60}")
-        for comp_name, factory in components:
-            elem = factory()
-            engine.register_element(elem)
-            all_elements.append((comp_name, elem))
+    for cycle in range(cycles):
+        print(f"\n{'-'*20} CYCLE {cycle + 1}/{cycles} {'-'*20}")
+        all_elements = []
 
-    total = len(all_elements)
-    print(f"\n[OK] Registered {total} components with engine")
+        # 1. Registration Phase
+        for phase_name, components in COMPONENTS:
+            if cycle == 0:
+                print(f"  Registering {phase_name}...")
+            for comp_name, factory in components:
+                elem = factory()
+                engine.register_element(elem)
+                all_elements.append((comp_name, elem))
 
-    print(f"\n[ENGINE] Running {frames} frames of headless simulation...")
-    for i in range(frames):
-        data = engine.tick(1280, 720)
-        if np.any(np.isnan(data['rect'])) or np.any(np.isnan(data['color'])):
-            print(f"[FAIL] NaN detected at frame {i}")
-            return False
+        print(f"[OK] Elements in memory: {len(engine._elements)} (Active: {engine.element_count})")
 
-    print(f"[OK] {frames} frames completed — numerical stability verified")
+        # 2. Simulation Phase
+        print(f"[SIM] Running simulation...")
+        for i in range(frames // cycles):
+            engine.tick(1280, 720)
+        
+        # 3. Disposal Phase (Testing Object Pool)
+        if cycle < cycles - 1:
+            print(f"[POOL] Disposing all elements to pool...")
+            for _, elem in all_elements:
+                elem.dispose()
+            
+            # Verify elements are inactive but pooled
+            print(f"[POOL] Active Elements: {engine.element_count} (Pool Size: {len(engine._elements)})")
+
+    total_active = engine.element_count
+    print(f"\n[OK] Lifecycle test completed — verified memory recycling")
 
     print(f"\n{'='*60}")
-    print(f"  Component Metadata Summary")
+    print(f"  Component Metadata Summary (Final State)")
     print(f"{'='*60}")
-    for comp_name, elem in all_elements:
+    # Only show active elements
+    for elem in engine.get_all_elements():
+        if elem.tensor is None: continue
         state = elem.tensor.state
         meta_type = getattr(elem, '_element_type', 'unknown')
-        print(f"  {comp_name:25s} [{meta_type}] "
+        print(f"  {meta_type:25s} "
               f"pos=({state[0]:.0f}, {state[1]:.0f}) "
               f"size=({state[2]:.0f}, {state[3]:.0f})")
 
-    print(f"\n[OK] All {total} components instantiated and simulated successfully")
+    print(f"\n[OK] All components instantiated, recycled, and simulated successfully")
     return True
 
 

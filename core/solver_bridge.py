@@ -116,6 +116,14 @@ try:
         k = 16.0 / (T_sec * T_sec)
         return np.float32(min(k, 10000.0))
 
+    @njit(fastmath=True, cache=True)
+    def clamp_stiffness_cfl(k: float, dt: float) -> float:
+        """Aether-Guard: CFL stability — ensures k * dt < 2.0 to prevent oscillation."""
+        if dt < 1e-9:
+            return k
+        max_stable_k = 2.0 / dt
+        return min(k, max_stable_k)
+
     @njit(parallel=True, fastmath=True, cache=True)
     def speed_to_viscosity(transition_time_ms: float) -> float:
         """Derive optimal viscosity from transition speed."""
@@ -246,6 +254,12 @@ except (ImportError, ModuleNotFoundError):
     )
     HAS_NUMBA = False
 
+    def clamp_stiffness_cfl(k, dt):
+        if dt < 1e-9:
+            return k
+        max_stable_k = 2.0 / dt
+        return min(k, max_stable_k)
+
     def get_hpc_config():
         return {
             "cpu_count": _CPU_COUNT,
@@ -284,6 +298,7 @@ __all__ = [
     'lerp_arrays',
     'speed_to_stiffness',
     'speed_to_viscosity',
+    'clamp_stiffness_cfl',
     'HAS_NUMBA',
     'get_hpc_config',
     'batch_restoring_forces',

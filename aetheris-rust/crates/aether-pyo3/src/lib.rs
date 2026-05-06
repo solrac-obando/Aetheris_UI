@@ -228,14 +228,16 @@ impl PyAetherEngine {
         self.inner.enable_gpu()
     }
 
-    pub fn register_static_box(&mut self, x: f32, y: f32, w: f32, h: f32, color: &PyVec4, z: i32) {
+    pub fn register_static_box(&mut self, x: f32, y: f32, w: f32, h: f32, color: &PyVec4, z: i32) -> PyResult<()> {
         self.inner
-            .register_element(Box::new(StaticBox::new(x, y, w, h, color.into_inner(), z)));
+            .register_element(Box::new(StaticBox::new(x, y, w, h, color.into_inner(), z)))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
-    pub fn register_smart_panel(&mut self, padding: f32, color: &PyVec4, z: i32) {
+    pub fn register_smart_panel(&mut self, padding: f32, color: &PyVec4, z: i32) -> PyResult<()> {
         self.inner
-            .register_element(Box::new(SmartPanel::new(padding, color.into_inner(), z)));
+            .register_element(Box::new(SmartPanel::new(padding, color.into_inner(), z)))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
     pub fn register_smart_button(
@@ -247,7 +249,7 @@ impl PyAetherEngine {
         offset_h: f32,
         color: &PyVec4,
         z: i32,
-    ) {
+    ) -> PyResult<()> {
         self.inner.register_element(Box::new(SmartButton::new(
             parent_index,
             offset_x,
@@ -256,7 +258,7 @@ impl PyAetherEngine {
             offset_h,
             color.into_inner(),
             z,
-        )));
+        ))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
     pub fn register_canvas_text_node(
@@ -270,7 +272,7 @@ impl PyAetherEngine {
         text: &str,
         font_size: u32,
         font_family: &str,
-    ) {
+    ) -> PyResult<()> {
         self.inner.register_element(Box::new(CanvasTextNode::new(
             x,
             y,
@@ -281,7 +283,7 @@ impl PyAetherEngine {
             text,
             font_size,
             font_family,
-        )));
+        ))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
     pub fn register_flexible_text_node(
@@ -293,7 +295,7 @@ impl PyAetherEngine {
         color: &PyVec4,
         z: i32,
         text: &str,
-    ) {
+    ) -> PyResult<()> {
         self.inner.register_element(Box::new(FlexibleTextNode::new(
             x,
             y,
@@ -302,7 +304,7 @@ impl PyAetherEngine {
             color.into_inner(),
             z,
             text,
-        )));
+        ))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
     }
 
     pub fn handle_pointer_down(&mut self, x: f32, y: f32) -> Option<usize> {

@@ -56,7 +56,16 @@ class MarioWebEngine(AetherEngine):
             self.register_element(StaticBox(x, y, 64, 64, color=[1,1,1,1], z=2))
 
     def handle_input(self, keys_json):
-        keys = json.loads(keys_json)
+        try:
+            keys_raw = json.loads(keys_json)
+            if not isinstance(keys_raw, dict):
+                return
+            
+            # H-03: Whitelist valid keys to prevent injection of unexpected fields
+            valid_keys = {'left', 'right', 'up', 'down', 'a', 'b'}
+            keys = {k: bool(v) for k, v in keys_raw.items() if k in valid_keys}
+        except (json.JSONDecodeError, TypeError):
+            return
         
         # Horizontal Movement
         if keys.get('left'):
