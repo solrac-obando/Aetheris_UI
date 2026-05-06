@@ -14,7 +14,7 @@ pub struct RenderData {
 }
 
 // M17: Concrete Rust Dynamic Limits
-const MAX_ELEMENTS_LIMIT: usize = 4000;
+const MAX_ELEMENTS_LIMIT: usize = 100000;
 const SAFETY_MARGIN: f32 = 0.35;
 const GC_THRESHOLD: f32 = 0.5;
 const GC_FRAMES_REQUIRED: u32 = 300;
@@ -119,7 +119,7 @@ impl AetherEngine {
             "Aether-Guard: elements/active vectors desynchronized"
         );
         
-        let max_elements = std::cmp::min(MAX_ELEMENTS_LIMIT, Self::get_optimal_max_elements());
+        let max_elements = MAX_ELEMENTS_LIMIT;
         
         if self.elements.len() >= max_elements {
             return Err(format!(

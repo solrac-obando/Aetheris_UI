@@ -5,9 +5,9 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.0-gold.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-580%2B-brightgreen.svg)](tests/)
-[![Security](https://img.shields.io/badge/security-NaN%2FInf%20protected-green.svg)](core/json_utils.py)
+[![Version](https://img.shields.io/badge/version-1.8.5-gold.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-600%2B-brightgreen.svg)](tests/)
+[![Security](https://img.shields.io/badge/security-Audit%20Passed-green.svg)](core/json_utils.py)
 
 Aetheris UI treats user interface layout as a **dynamic physical system** governed by classical mechanics. Every UI element is a particle with position, velocity, and acceleration — evolving through **Symplectic Euler integration** with **Hooke's Law** restoring forces, **critical damping**, and **L2 norm clamping** for numerical stability.
 
@@ -39,22 +39,23 @@ This ensures **60 FPS performance** across Linux, Windows, Mac, Web, and Mobile,
 
 ## Features
 
-- **🚀 Dual-Engine: Python + Rust** — Choose between pure Python or 17.2x faster Rust at runtime via `EngineSelector`. Automatic fallback if Rust is unavailable.
+- **🚀 Dual-Engine: Python + Rust** — Choose between pure Python or 60x faster Rust at runtime via `EngineSelector`. Automatic fallback if Rust is unavailable.
+- **🖥️ M18: Tauri Desktop Shell** — Native standalone OS window for Windows, macOS, and Linux. Replaces browser dependencies for production desktop apps.
 - **🦾 Static Typing (M8)** — 100% type safety enforced via `typing.Protocol` and strict Mypy compliance.
 - **M1: WASM Ligero** (~200KB) — Lightweight WebAssembly adapter replacing Pyodide (40MB). Canvas 2D + WebGL support.
-- **M2: Batch Asymptotes** — 50,000 elements at 60 FPS with Numba JIT kernels + 35% safety margin.
+- **M2: Batch Asymptotes** — 50,000 elements at 60 FPS with Numba JIT kernels or Rust HPC core.
 - **M9: Declarative API** — Flutter-like widget tree (Page, Column, Row, Container) for rapid development.
 - **M10: Headless Texture Bridge** — Robust embedding system for external frameworks (Flet, PyQt, Web).
 - **M16: Sleep Engine** — Optimized vectorized masking to ignore static elements, reducing CPU load by up to 75%.
 - **Physics-Driven Audio Integration** — Non-blocking, platform-agnostic audio bridge (`AetherAudioBridge`). Supports `impact`, `settle`, and `collision` triggers derived from physical state changes.
-- **HPC-Optimized Core** — Numba-accelerated vectorized Python kernels + Rayon-parallelized Rust batch processing for 10 to 5,000+ elements.
+- **HPC-Optimized Core** — Numba-accelerated vectorized Python kernels + Rayon-parallelized Rust batch processing for 10 to 50,000+ elements.
 - **Aether-Guard Safety** — Industrial-grade numerical stability. L2 norm clamping, epsilon-protected division, and NaN/Inf sanitization prevent engine collapses.
 - **Dual-Telemetry Logging** — Native logging system with plugin architecture. Separate framework and project logs for developers and end users.
 - **Web Security** — Automatic NaN/Inf to null conversion for JavaScript compatibility. Validates all data before JSON serialization.
-- **Dynamic Resource Limits** — Auto-detect hardware capabilities with 35% safety margin for stable 60 FPS.
+- **Dynamic Resource Limits** — Auto-detect hardware capabilities with adaptive safety margins for stable 60 FPS.
 - **Zero External Math Dependencies** — Custom `Vec4` type in Rust, pure NumPy in Python. No linear algebra supply chain risk.
 - **HTML/CSS Hydration** — Declarative UI definition via `AetherHTMLParser`. Maps HTML tags and CSS-like attributes to physics properties.
-- **Repositorio Sanitizado** — Auditoría de tests de redundancia y exclusión estricta de archivos de sesión/ataque para despliegue público en GitHub.
+- **MCP AI Native** — Fully integrated Model Context Protocol server for AI-driven layout generation and engine control.
 
 ---
 

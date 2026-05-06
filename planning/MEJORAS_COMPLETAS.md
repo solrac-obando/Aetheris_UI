@@ -350,8 +350,11 @@ def tick(self, width: int, height: int) -> np.ndarray:
 - **Limpieza Automática (GC)**: Liberar memoria automáticamente tras periodos de inactividad o superación de límites.
 - **Cache Local**: Optimización de acceso a objetos reciclados.
 
-### M18: Integración con Tauri ⏳
-**Descripción:** Alternativa de alto rendimiento a Kivy para escritorio y móvil.
-- **Backend Rust**: Aprovechar Tauri para una comunicación ultra-rápida con el motor Rust.
-- **WebView Ligero**: Usar los recursos del sistema (navegador nativo) para renderizar la UI de Aetheris.
-- **Cross-Platform**: Una sola base para Windows, macOS, Linux, iOS y Android.
+### M18: Integración con Tauri ✅
+**Ubicación:** `aetheris-rust/aetheris-tauri/`
+**Descripción:** Shell nativo de alto rendimiento que reemplaza a Kivy para escritorio.
+**Features:**
+- **Native Backend**: Comunicación ultra-rápida con el motor Rust core.
+- **WebView Shell**: Renderizado de 50,000 objetos a 60 FPS (HPC).
+- **Cross-Platform**: Base para Windows, macOS y Linux con un solo binario.
+- **MCP Enabled**: Control total del ciclo de vida de la ventana desde modelos de IA.

@@ -87,36 +87,23 @@ async def switch_engine(engine_type: str) -> str:
     except Exception as e:
         return f"Failed to switch engine: {str(e)}"
 
+from core.ai_bridge import ai
+
 @mcp.tool()
-async def query_ai_suggestion(prompt: str, model: str = "qwen2.5-coder:3b") -> str:
+async def query_ai_suggestion(prompt: str, model: Optional[str] = None) -> str:
     """
-    Asks a local AI model (via Ollama or OpenCode) for UI/Physics suggestions.
+    Asks the Aetheris AI Bridge (agnostic provider) for UI/Physics suggestions.
     
     Args:
         prompt: The request for the AI (e.g. 'Generate a physics-based card layout')
-        model: The model to use (default: qwen2.5-coder:3b)
+        model: Optional model name. If not provided, the bridge defaults will be used.
     """
-    import httpx
-    
-    # Try Ollama local API
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model": model,
-                    "prompt": f"As an Aetheris UI expert, solve this: {prompt}. Return only valid JSON for the layout intent if possible.",
-                    "stream": False
-                },
-                timeout=30.0
-            )
-            if response.status_code == 200:
-                return response.json().get("response", "No response from model.")
+        # Use the agnostic bridge instead of raw httpx to Ollama
+        return await ai.chat(prompt, model=model)
     except Exception as e:
-        logger.error(f"Ollama error: {str(e)}")
-        return f"Error connecting to AI model ({model}): {str(e)}"
-
-    return "No AI model found at localhost:11434"
+        logger.error(f"AI Bridge error: {str(e)}")
+        return f"Error connecting to AI Bridge: {str(e)}"
 
 @mcp.tool()
 async def optimize_workload() -> str:
@@ -197,6 +184,26 @@ async def apply_ui_intent(intent_json: str) -> str:
         return f"Successfully applied intent with {len(intent.get('elements', []))} elements."
     except Exception as e:
         return f"Failed to apply intent: {str(e)}"
+
+@mcp.tool()
+async def launch_desktop_dashboard() -> str:
+    """
+    Launches the Aetheris Desktop Dashboard using Tauri (M18 enhancement).
+    This opens a native OS window that connects to the high-performance Rust core.
+    """
+    try:
+        # Trigger Tauri dev command
+        tauri_path = os.path.join(PROJECT_ROOT, "aetheris-rust", "aetheris-tauri")
+        
+        # Note: We don't wait for completion as it's a long-running process
+        await asyncio.create_subprocess_shell(
+            "cargo tauri dev",
+            cwd=tauri_path
+        )
+        
+        return "Tauri Desktop Shell (M18) launch initiated. Connecting to Rust core..."
+    except Exception as e:
+        return f"Failed to launch Tauri: {str(e)}"
 
 # ── Entry Point ────────────────────────────────────────────────────────────
 
