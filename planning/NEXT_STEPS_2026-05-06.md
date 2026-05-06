@@ -5,16 +5,15 @@
 - **Rendimiento**: El motor Rust en Release está validado (240 FPS), pero la capa de visualización necesita componentes más robustos.
 
 ## 🎯 Objetivos para Mañana
-1. **Expansión de Componentes**:
-   - Crear al menos 10 nuevos componentes especializados para Dashboards de alta densidad.
-   - Mejorar la documentación técnica de cada componente para facilitar su uso por IAs.
+1. **Validación Atómica de Componentes**:
+   - Crear un script de "Showcase" para visualizar cada componente individualmente (Gauge, Sparkline, Orb, etc.).
+   - Verificar física, renderizado y respuesta táctil/haptic de cada uno antes de avanzar.
 
-2. **Integración de Skills**:
-   - Localizar o implementar la "Skill para crear Skills".
-   - Entrenar al entorno en el uso de Aetheris mediante estas habilidades.
+2. **Creación de Skills en Segundo Plano**:
+   - Desarrollar las habilidades (skills) necesarias para que la IA entienda y manipule cada componente a medida que se validan.
 
-3. **Ciclo de Proyectos Rápidos**:
-   - Realizar 3 iteraciones de proyectos distintos (e.g., Monitoring, Finance, IoT) en un entorno controlado para probar la versatilidad del framework.
+3. **Showcase Completo**:
+   - Ensamblar un dashboard final que utilice exclusivamente los componentes previamente validados.
 
 4. **Entorno**:
    - Evaluar si seguimos en Docker o pasamos a un entorno host local más directo para evitar problemas de red/puertos.
